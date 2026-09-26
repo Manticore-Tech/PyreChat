@@ -1,0 +1,27 @@
+# Static analysis configuration for the canonical outer PyreChat Flutter app.
+#
+# The repository still contains a deliberately preserved nested legacy Flutter
+# copy plus a few dead pre-rewrite files. Keep those out of the active analyzer
+# until they are archived/reconciled separately; the live app entrypoint is
+# `lib/main.dart`.
+
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
+    - pyrechat_flutter/**
+    - lib/app/pyre_chat_app.dart
+    - lib/pages/splash/splash_page.dart
+    - lib/services/ignite_sound.dart
+
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    # Keep the standard Flutter lint set. Project-specific overrides belong here
+    # only when there is a documented reason for them.

@@ -1,0 +1,55 @@
+name: pyrechat_flutter
+description: "PyreChat client."
+publish_to: 'none'
+version: 1.0.0+2
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  http: ^1.2.2
+  shared_preferences: ^2.3.3
+  camera: ^0.11.2
+  permission_handler: ^12.0.1
+  image: ^4.5.4
+  google_mlkit_face_mesh_detection: ^0.4.1
+  google_mlkit_commons: ^0.11.1
+  web_socket_channel: ^3.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.3
+  flutter_native_splash: ^2.4.4
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/app_icon.png
+  adaptive_icon_background: "#FC7A1A"
+  adaptive_icon_foreground: assets/adaptive_foreground.png
+  remove_alpha_ios: true
+
+flutter_native_splash:
+  color: "#FC7A1A"
+  image: assets/splash_flame.png
+  android_12:
+    color: "#FC7A1A"
+    image: assets/splash_flame.png
+    icon_background_color: "#FC7A1A"
+  android: true
+  ios: true
+  web: false
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icon_sheet.png
+    - assets/icons/
+    - assets/pyre_flame.png
+    - assets/ChatGPT Image Aug 28, 2026, 07_34_39 PM (1).png
+    - assets/ChatGPT Image Aug 28, 2026, 07_34_39 PM (2).png

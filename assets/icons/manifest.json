@@ -1,0 +1,986 @@
+[
+  {
+    "name": "flame",
+    "file": "flame.png",
+    "index": 0,
+    "bbox": [
+      34,
+      12,
+      155,
+      149
+    ],
+    "pixels": 11314
+  },
+  {
+    "name": "flame_plus",
+    "file": "flame_plus.png",
+    "index": 1,
+    "bbox": [
+      197,
+      12,
+      327,
+      149
+    ],
+    "pixels": 12183
+  },
+  {
+    "name": "chat",
+    "file": "chat.png",
+    "index": 2,
+    "bbox": [
+      376,
+      27,
+      504,
+      138
+    ],
+    "pixels": 11363
+  },
+  {
+    "name": "chat_empty",
+    "file": "chat_empty.png",
+    "index": 3,
+    "bbox": [
+      540,
+      27,
+      657,
+      135
+    ],
+    "pixels": 10081
+  },
+  {
+    "name": "chats",
+    "file": "chats.png",
+    "index": 4,
+    "bbox": [
+      694,
+      22,
+      833,
+      137
+    ],
+    "pixels": 11828
+  },
+  {
+    "name": "send_outline",
+    "file": "send_outline.png",
+    "index": 5,
+    "bbox": [
+      867,
+      28,
+      991,
+      141
+    ],
+    "pixels": 8382
+  },
+  {
+    "name": "send",
+    "file": "send.png",
+    "index": 6,
+    "bbox": [
+      1041,
+      31,
+      1144,
+      132
+    ],
+    "pixels": 6045
+  },
+  {
+    "name": "arrow_left",
+    "file": "arrow_left.png",
+    "index": 7,
+    "bbox": [
+      1173,
+      34,
+      1268,
+      126
+    ],
+    "pixels": 5210
+  },
+  {
+    "name": "arrow_right",
+    "file": "arrow_right.png",
+    "index": 8,
+    "bbox": [
+      1284,
+      34,
+      1384,
+      127
+    ],
+    "pixels": 5442
+  },
+  {
+    "name": "search",
+    "file": "search.png",
+    "index": 9,
+    "bbox": [
+      1405,
+      25,
+      1513,
+      134
+    ],
+    "pixels": 6602
+  },
+  {
+    "name": "camera",
+    "file": "camera.png",
+    "index": 10,
+    "bbox": [
+      36,
+      168,
+      160,
+      273
+    ],
+    "pixels": 11521
+  },
+  {
+    "name": "gallery",
+    "file": "gallery.png",
+    "index": 11,
+    "bbox": [
+      197,
+      169,
+      313,
+      273
+    ],
+    "pixels": 11483
+  },
+  {
+    "name": "video",
+    "file": "video.png",
+    "index": 12,
+    "bbox": [
+      345,
+      176,
+      469,
+      267
+    ],
+    "pixels": 9898
+  },
+  {
+    "name": "video_flame",
+    "file": "video_flame.png",
+    "index": 13,
+    "bbox": [
+      503,
+      176,
+      625,
+      267
+    ],
+    "pixels": 9919
+  },
+  {
+    "name": "mic",
+    "file": "mic.png",
+    "index": 14,
+    "bbox": [
+      657,
+      162,
+      743,
+      275
+    ],
+    "pixels": 7138
+  },
+  {
+    "name": "mic_muted",
+    "file": "mic_muted.png",
+    "index": 15,
+    "bbox": [
+      801,
+      163,
+      897,
+      275
+    ],
+    "pixels": 7948
+  },
+  {
+    "name": "phone",
+    "file": "phone.png",
+    "index": 16,
+    "bbox": [
+      947,
+      165,
+      1051,
+      273
+    ],
+    "pixels": 6400
+  },
+  {
+    "name": "video_compact",
+    "file": "video_compact.png",
+    "index": 17,
+    "bbox": [
+      1094,
+      178,
+      1218,
+      265
+    ],
+    "pixels": 9668
+  },
+  {
+    "name": "profile",
+    "file": "profile.png",
+    "index": 18,
+    "bbox": [
+      1256,
+      161,
+      1356,
+      272
+    ],
+    "pixels": 7966
+  },
+  {
+    "name": "users",
+    "file": "users.png",
+    "index": 19,
+    "bbox": [
+      1393,
+      169,
+      1511,
+      268
+    ],
+    "pixels": 9063
+  },
+  {
+    "name": "profile_add",
+    "file": "profile_add.png",
+    "index": 20,
+    "bbox": [
+      24,
+      295,
+      150,
+      399
+    ],
+    "pixels": 9300
+  },
+  {
+    "name": "users_add",
+    "file": "users_add.png",
+    "index": 21,
+    "bbox": [
+      175,
+      296,
+      307,
+      402
+    ],
+    "pixels": 9968
+  },
+  {
+    "name": "profile_heart",
+    "file": "profile_heart.png",
+    "index": 22,
+    "bbox": [
+      336,
+      292,
+      448,
+      403
+    ],
+    "pixels": 8561
+  },
+  {
+    "name": "profile_circle",
+    "file": "profile_circle.png",
+    "index": 23,
+    "bbox": [
+      490,
+      294,
+      601,
+      405
+    ],
+    "pixels": 9967
+  },
+  {
+    "name": "profile_flame",
+    "file": "profile_flame.png",
+    "index": 24,
+    "bbox": [
+      642,
+      292,
+      748,
+      405
+    ],
+    "pixels": 8548
+  },
+  {
+    "name": "settings",
+    "file": "settings.png",
+    "index": 25,
+    "bbox": [
+      791,
+      292,
+      900,
+      405
+    ],
+    "pixels": 9575
+  },
+  {
+    "name": "bell",
+    "file": "bell.png",
+    "index": 26,
+    "bbox": [
+      945,
+      293,
+      1046,
+      405
+    ],
+    "pixels": 7570
+  },
+  {
+    "name": "bell_dot",
+    "file": "bell_dot.png",
+    "index": 27,
+    "bbox": [
+      1096,
+      293,
+      1201,
+      403
+    ],
+    "pixels": 8212
+  },
+  {
+    "name": "bell_muted",
+    "file": "bell_muted.png",
+    "index": 28,
+    "bbox": [
+      1247,
+      293,
+      1346,
+      403
+    ],
+    "pixels": 8327
+  },
+  {
+    "name": "mail",
+    "file": "mail.png",
+    "index": 29,
+    "bbox": [
+      1395,
+      303,
+      1509,
+      401
+    ],
+    "pixels": 10713
+  },
+  {
+    "name": "mail_flame",
+    "file": "mail_flame.png",
+    "index": 30,
+    "bbox": [
+      32,
+      423,
+      148,
+      513
+    ],
+    "pixels": 8614
+  },
+  {
+    "name": "mail_plus",
+    "file": "mail_plus.png",
+    "index": 31,
+    "bbox": [
+      186,
+      432,
+      307,
+      526
+    ],
+    "pixels": 8785
+  },
+  {
+    "name": "mail_dot",
+    "file": "mail_dot.png",
+    "index": 32,
+    "bbox": [
+      342,
+      424,
+      458,
+      519
+    ],
+    "pixels": 8903
+  },
+  {
+    "name": "attach",
+    "file": "attach.png",
+    "index": 33,
+    "bbox": [
+      490,
+      422,
+      588,
+      528
+    ],
+    "pixels": 6781
+  },
+  {
+    "name": "smile",
+    "file": "smile.png",
+    "index": 34,
+    "bbox": [
+      631,
+      421,
+      736,
+      527
+    ],
+    "pixels": 8951
+  },
+  {
+    "name": "sticker",
+    "file": "sticker.png",
+    "index": 35,
+    "bbox": [
+      782,
+      423,
+      886,
+      527
+    ],
+    "pixels": 9516
+  },
+  {
+    "name": "gif_flame",
+    "file": "gif_flame.png",
+    "index": 36,
+    "bbox": [
+      938,
+      411,
+      1049,
+      525
+    ],
+    "pixels": 10809
+  },
+  {
+    "name": "location",
+    "file": "location.png",
+    "index": 37,
+    "bbox": [
+      1104,
+      416,
+      1193,
+      526
+    ],
+    "pixels": 7324
+  },
+  {
+    "name": "calendar",
+    "file": "calendar.png",
+    "index": 38,
+    "bbox": [
+      1246,
+      417,
+      1347,
+      525
+    ],
+    "pixels": 10033
+  },
+  {
+    "name": "clock",
+    "file": "clock.png",
+    "index": 39,
+    "bbox": [
+      1398,
+      422,
+      1504,
+      529
+    ],
+    "pixels": 9136
+  },
+  {
+    "name": "reply",
+    "file": "reply.png",
+    "index": 40,
+    "bbox": [
+      24,
+      549,
+      127,
+      643
+    ],
+    "pixels": 5684
+  },
+  {
+    "name": "reply_all",
+    "file": "reply_all.png",
+    "index": 41,
+    "bbox": [
+      177,
+      551,
+      298,
+      636
+    ],
+    "pixels": 7008
+  },
+  {
+    "name": "forward",
+    "file": "forward.png",
+    "index": 42,
+    "bbox": [
+      333,
+      550,
+      440,
+      638
+    ],
+    "pixels": 5665
+  },
+  {
+    "name": "refresh",
+    "file": "refresh.png",
+    "index": 43,
+    "bbox": [
+      480,
+      546,
+      588,
+      639
+    ],
+    "pixels": 7191
+  },
+  {
+    "name": "shuffle",
+    "file": "shuffle.png",
+    "index": 44,
+    "bbox": [
+      631,
+      547,
+      743,
+      641
+    ],
+    "pixels": 7512
+  },
+  {
+    "name": "trash",
+    "file": "trash.png",
+    "index": 45,
+    "bbox": [
+      787,
+      543,
+      882,
+      648
+    ],
+    "pixels": 8078
+  },
+  {
+    "name": "trash_flame",
+    "file": "trash_flame.png",
+    "index": 46,
+    "bbox": [
+      944,
+      541,
+      1043,
+      648
+    ],
+    "pixels": 8974
+  },
+  {
+    "name": "bookmark",
+    "file": "bookmark.png",
+    "index": 47,
+    "bbox": [
+      1101,
+      546,
+      1181,
+      644
+    ],
+    "pixels": 7322
+  },
+  {
+    "name": "bookmark_flame",
+    "file": "bookmark_flame.png",
+    "index": 48,
+    "bbox": [
+      1248,
+      541,
+      1345,
+      648
+    ],
+    "pixels": 8890
+  },
+  {
+    "name": "pin",
+    "file": "pin.png",
+    "index": 49,
+    "bbox": [
+      1394,
+      539,
+      1496,
+      646
+    ],
+    "pixels": 6056
+  },
+  {
+    "name": "more",
+    "file": "more.png",
+    "index": 50,
+    "bbox": [
+      28,
+      691,
+      137,
+      731
+    ],
+    "pixels": 3755
+  },
+  {
+    "name": "menu",
+    "file": "menu.png",
+    "index": 51,
+    "bbox": [
+      184,
+      678,
+      278,
+      750
+    ],
+    "pixels": 6590
+  },
+  {
+    "name": "grid",
+    "file": "grid.png",
+    "index": 52,
+    "bbox": [
+      338,
+      667,
+      434,
+      757
+    ],
+    "pixels": 8155
+  },
+  {
+    "name": "sliders",
+    "file": "sliders.png",
+    "index": 53,
+    "bbox": [
+      485,
+      664,
+      574,
+      766
+    ],
+    "pixels": 7638
+  },
+  {
+    "name": "lock",
+    "file": "lock.png",
+    "index": 54,
+    "bbox": [
+      634,
+      662,
+      723,
+      768
+    ],
+    "pixels": 8084
+  },
+  {
+    "name": "unlock",
+    "file": "unlock.png",
+    "index": 55,
+    "bbox": [
+      785,
+      663,
+      873,
+      769
+    ],
+    "pixels": 7873
+  },
+  {
+    "name": "eye",
+    "file": "eye.png",
+    "index": 56,
+    "bbox": [
+      930,
+      674,
+      1042,
+      755
+    ],
+    "pixels": 6823
+  },
+  {
+    "name": "eye_off",
+    "file": "eye_off.png",
+    "index": 57,
+    "bbox": [
+      1079,
+      666,
+      1193,
+      760
+    ],
+    "pixels": 7970
+  },
+  {
+    "name": "moon",
+    "file": "moon.png",
+    "index": 58,
+    "bbox": [
+      1248,
+      663,
+      1345,
+      762
+    ],
+    "pixels": 5889
+  },
+  {
+    "name": "sun",
+    "file": "sun.png",
+    "index": 59,
+    "bbox": [
+      1391,
+      661,
+      1500,
+      768
+    ],
+    "pixels": 7294
+  },
+  {
+    "name": "heart",
+    "file": "heart.png",
+    "index": 60,
+    "bbox": [
+      29,
+      785,
+      130,
+      874
+    ],
+    "pixels": 6783
+  },
+  {
+    "name": "heart_filled",
+    "file": "heart_filled.png",
+    "index": 61,
+    "bbox": [
+      174,
+      785,
+      277,
+      874
+    ],
+    "pixels": 6925
+  },
+  {
+    "name": "heart_broken",
+    "file": "heart_broken.png",
+    "index": 62,
+    "bbox": [
+      328,
+      782,
+      437,
+      874
+    ],
+    "pixels": 7598
+  },
+  {
+    "name": "heart_flame",
+    "file": "heart_flame.png",
+    "index": 63,
+    "bbox": [
+      486,
+      768,
+      574,
+      879
+    ],
+    "pixels": 6770
+  },
+  {
+    "name": "star",
+    "file": "star.png",
+    "index": 64,
+    "bbox": [
+      631,
+      783,
+      734,
+      879
+    ],
+    "pixels": 6549
+  },
+  {
+    "name": "star_filled",
+    "file": "star_filled.png",
+    "index": 65,
+    "bbox": [
+      782,
+      784,
+      885,
+      879
+    ],
+    "pixels": 6534
+  },
+  {
+    "name": "thumbs_up",
+    "file": "thumbs_up.png",
+    "index": 66,
+    "bbox": [
+      936,
+      776,
+      1035,
+      875
+    ],
+    "pixels": 7360
+  },
+  {
+    "name": "thumbs_down",
+    "file": "thumbs_down.png",
+    "index": 67,
+    "bbox": [
+      1080,
+      897,
+      1119,
+      937
+    ],
+    "pixels": 1024
+  },
+  {
+    "name": "check",
+    "file": "check.png",
+    "index": 68,
+    "bbox": [
+      1094,
+      788,
+      1183,
+      880
+    ],
+    "pixels": 6357
+  },
+  {
+    "name": "check_double",
+    "file": "check_double.png",
+    "index": 69,
+    "bbox": [
+      1236,
+      786,
+      1344,
+      874
+    ],
+    "pixels": 4660
+  },
+  {
+    "name": "wifi",
+    "file": "wifi.png",
+    "index": 70,
+    "bbox": [
+      1388,
+      791,
+      1506,
+      866
+    ],
+    "pixels": 4932
+  },
+  {
+    "name": "wifi_off",
+    "file": "wifi_off.png",
+    "index": 71,
+    "bbox": [
+      25,
+      899,
+      138,
+      995
+    ],
+    "pixels": 6939
+  },
+  {
+    "name": "signal",
+    "file": "signal.png",
+    "index": 72,
+    "bbox": [
+      173,
+      895,
+      279,
+      994
+    ],
+    "pixels": 7305
+  },
+  {
+    "name": "battery",
+    "file": "battery.png",
+    "index": 73,
+    "bbox": [
+      318,
+      898,
+      411,
+      993
+    ],
+    "pixels": 6382
+  },
+  {
+    "name": "battery_low",
+    "file": "battery_low.png",
+    "index": 74,
+    "bbox": [
+      446,
+      907,
+      572,
+      984
+    ],
+    "pixels": 9171
+  },
+  {
+    "name": "battery_charging",
+    "file": "battery_charging.png",
+    "index": 75,
+    "bbox": [
+      609,
+      909,
+      731,
+      984
+    ],
+    "pixels": 8554
+  },
+  {
+    "name": "flame_filled",
+    "file": "flame_filled.png",
+    "index": 76,
+    "bbox": [
+      764,
+      909,
+      900,
+      993
+    ],
+    "pixels": 10752
+  },
+  {
+    "name": "flame_sparkle",
+    "file": "flame_sparkle.png",
+    "index": 77,
+    "bbox": [
+      941,
+      895,
+      1024,
+      996
+    ],
+    "pixels": 5852
+  },
+  {
+    "name": "chat_heart",
+    "file": "chat_heart.png",
+    "index": 78,
+    "bbox": [
+      1068,
+      932,
+      1098,
+      963
+    ],
+    "pixels": 654
+  },
+  {
+    "name": "share",
+    "file": "share.png",
+    "index": 79,
+    "bbox": [
+      1098,
+      899,
+      1177,
+      998
+    ],
+    "pixels": 5390
+  },
+  {
+    "name": "icon_080",
+    "file": "icon_080.png",
+    "index": 80,
+    "bbox": [
+      1235,
+      895,
+      1348,
+      996
+    ],
+    "pixels": 9115
+  },
+  {
+    "name": "icon_081",
+    "file": "icon_081.png",
+    "index": 81,
+    "bbox": [
+      1383,
+      884,
+      1488,
+      997
+    ],
+    "pixels": 6851
+  }
+]
