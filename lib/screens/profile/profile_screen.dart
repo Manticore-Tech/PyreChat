@@ -4,6 +4,8 @@ import 'package:pyrechat_flutter/screens/profile/settings_screen.dart';
 import 'package:pyrechat_flutter/theme/pyre_theme.dart';
 import 'package:pyrechat_flutter/widgets/animated_pyre_fire.dart';
 import 'package:pyrechat_flutter/widgets/pyre_avatar.dart';
+import 'package:pyrechat_flutter/widgets/pyre_glass_surface.dart';
+import 'package:pyrechat_flutter/widgets/pyre_icon.dart';
 import 'package:pyrechat_flutter/widgets/pyre_night_backdrop.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -19,7 +21,7 @@ class ProfileScreen extends StatelessWidget {
         : user.username.trim();
 
     return PyreNightBackdrop(
-      mood: PyreNightMood.ember,
+      mood: PyreSurfaceMood.profile,
       child: ListView(
         padding: EdgeInsets.fromLTRB(18, top + 16, 18, 116),
         children: [
@@ -37,7 +39,7 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
               _RoundAction(
-                icon: Icons.settings_outlined,
+                asset: PyreIcons.actionSettings,
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
@@ -102,21 +104,10 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 26),
-          Container(
-            decoration: BoxDecoration(
-              color: PyreColors.nightCardStrong,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.065),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.24),
-                  blurRadius: 24,
-                  offset: const Offset(0, 12),
-                ),
-              ],
-            ),
+          PyreGlassSurface(
+            tone: PyreGlassTone.strong,
+            radius: 24,
+            padding: EdgeInsets.zero,
             child: Row(
               children: [
                 Expanded(
@@ -173,21 +164,21 @@ class ProfileScreen extends StatelessWidget {
           _ProfileMenuCard(
             children: [
               _ProfileRow(
-                icon: Icons.photo_library_outlined,
+                asset: PyreIcons.actionGallery,
                 title: 'Media',
                 subtitle: 'Coming after the alpha',
                 enabled: false,
               ),
               const _Divider(),
               _ProfileRow(
-                icon: Icons.people_outline_rounded,
+                asset: PyreIcons.actionGroups,
                 title: 'Friends',
                 subtitle: 'Coming after the alpha',
                 enabled: false,
               ),
               const _Divider(),
               _ProfileRow(
-                icon: Icons.settings_outlined,
+                asset: PyreIcons.actionSettings,
                 title: 'Settings',
                 subtitle: 'Account, notifications, privacy',
                 onTap: () {
@@ -208,28 +199,26 @@ class ProfileScreen extends StatelessWidget {
 
 class _RoundAction extends StatelessWidget {
   const _RoundAction({
-    required this.icon,
+    required this.asset,
     required this.onTap,
   });
 
-  final IconData icon;
+  final String asset;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white.withValues(alpha: 0.055),
+      color: Colors.transparent,
       shape: const CircleBorder(),
       child: InkWell(
         onTap: onTap,
         customBorder: const CircleBorder(),
         child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Icon(
-            icon,
-            color: PyreColors.nightText,
-            size: 21,
+          width: 46,
+          height: 46,
+          child: Center(
+            child: PyreIcon(asset: asset, size: 44),
           ),
         ),
       ),
@@ -244,14 +233,11 @@ class _ProfileMenuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: PyreColors.nightCard,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.055),
-        ),
-      ),
+    return PyreGlassSurface(
+      tone: PyreGlassTone.standard,
+      radius: 22,
+      padding: EdgeInsets.zero,
+      shadow: false,
       child: Column(children: children),
     );
   }
@@ -259,14 +245,14 @@ class _ProfileMenuCard extends StatelessWidget {
 
 class _ProfileRow extends StatelessWidget {
   const _ProfileRow({
-    required this.icon,
+    required this.asset,
     required this.title,
     required this.subtitle,
     this.onTap,
     this.enabled = true,
   });
 
-  final IconData icon;
+  final String asset;
   final String title;
   final String subtitle;
   final VoidCallback? onTap;
@@ -285,14 +271,12 @@ class _ProfileRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
           child: Row(
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: PyreColors.ember.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(13),
+              SizedBox(
+                width: 40,
+                height: 40,
+                child: Center(
+                  child: PyreIcon(asset: asset, size: 38),
                 ),
-                child: Icon(icon, color: PyreColors.emberGlow, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(

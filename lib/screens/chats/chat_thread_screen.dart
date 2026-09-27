@@ -359,7 +359,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
       child: Scaffold(
         backgroundColor: _chatInk,
         body: PyreNightBackdrop(
-          mood: PyreNightMood.night,
+          mood: PyreSurfaceMood.chatThread,
           showEmbers: false,
           child: Column(
             children: [
@@ -473,8 +473,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
       child: Row(
         children: [
           _ComposerIconButton(
-            asset: PyreIcons.camera,
-            filled: true,
+            asset: PyreIcons.navCameraActive,
             onTap: widget.onGoCamera == null ? null : _openCamera,
           ),
           const SizedBox(width: 8),
@@ -520,8 +519,14 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                     ),
                   ),
                   if (!hasText) ...[
-                    const _ComposerIconButton(asset: PyreIcons.mic),
-                    const _ComposerIconButton(asset: PyreIcons.gallery),
+                    const _ComposerIconButton(
+                      asset: PyreIcons.actionVoice,
+                      artworkFrame: true,
+                    ),
+                    const _ComposerIconButton(
+                      asset: PyreIcons.actionGallery,
+                      artworkFrame: true,
+                    ),
                   ],
                 ],
               ),
@@ -529,8 +534,8 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
           ),
           const SizedBox(width: 8),
           _ComposerIconButton(
-            asset: hasText ? PyreIcons.send : PyreIcons.smile,
-            filled: hasText,
+            asset: hasText ? PyreIcons.actionSendPlane : PyreIcons.smile,
+            artworkFrame: hasText,
             busy: _sending,
             onTap: hasText && !_sending ? _send : null,
           ),
@@ -859,21 +864,21 @@ class _ComposerIconButton extends StatelessWidget {
   const _ComposerIconButton({
     required this.asset,
     this.onTap,
-    this.filled = false,
     this.busy = false,
+    this.artworkFrame = false,
   });
 
   final String asset;
   final VoidCallback? onTap;
-  final bool filled;
   final bool busy;
+  final bool artworkFrame;
 
   @override
   Widget build(BuildContext context) {
     final enabled = onTap != null && !busy;
     return Material(
-      color: filled
-          ? PyreColors.emberHot
+      color: artworkFrame
+          ? Colors.transparent
           : Colors.white.withValues(alpha: 0.035),
       shape: const CircleBorder(),
       child: InkWell(
@@ -889,13 +894,13 @@ class _ComposerIconButton extends StatelessWidget {
                     height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: PyreColors.ink,
+                      color: PyreColors.emberGlow,
                     ),
                   )
                 : PyreIcon(
                     asset: asset,
-                    size: filled ? 22 : 20,
-                    opacity: enabled ? (filled ? 1 : 0.92) : 0.35,
+                    size: artworkFrame ? 42 : 25,
+                    opacity: enabled ? 1 : 0.35,
                   ),
           ),
         ),

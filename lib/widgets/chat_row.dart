@@ -88,13 +88,16 @@ class ChatRow extends StatelessWidget {
                           ),
                           if (pinPosition != ChatPinPosition.none) ...[
                             const SizedBox(width: 5),
-                            Icon(
-                              pinPosition == ChatPinPosition.top
-                                  ? Icons.push_pin_rounded
-                                  : Icons.vertical_align_bottom_rounded,
-                              size: 14,
-                              color: PyreColors.emberGlow,
-                            ),
+                            pinPosition == ChatPinPosition.top
+                                ? const PyreIcon(
+                                    asset: PyreIcons.actionPin,
+                                    size: 19,
+                                  )
+                                : const Icon(
+                                    Icons.vertical_align_bottom_rounded,
+                                    size: 14,
+                                    color: PyreColors.emberGlow,
+                                  ),
                           ],
                           if (chat.muted) ...[
                             const SizedBox(width: 5),
@@ -160,15 +163,9 @@ class ChatRow extends StatelessWidget {
                       width: 42,
                       height: 42,
                       child: Center(
-                        child: ColorFiltered(
-                          colorFilter: ColorFilter.mode(
-                            PyreColors.nightText,
-                            BlendMode.srcIn,
-                          ),
-                          child: PyreIcon(
-                            asset: PyreIcons.camera,
-                            size: 20,
-                          ),
+                        child: PyreIcon(
+                          asset: PyreIcons.navCameraInactive,
+                          size: 26,
                         ),
                       ),
                     ),

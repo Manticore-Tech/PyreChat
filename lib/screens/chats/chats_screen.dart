@@ -351,7 +351,7 @@ class ChatsScreenState extends State<ChatsScreen>
   Widget build(BuildContext context) {
     super.build(context);
     return PyreNightBackdrop(
-      mood: PyreNightMood.night,
+      mood: PyreSurfaceMood.chats,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -581,7 +581,7 @@ class _ChatsHeader extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   _HeaderIconButton(
-                    asset: PyreIcons.search,
+                    asset: PyreIcons.actionSearch,
                     onTap: onAddFriends,
                   ),
                 ],
@@ -593,12 +593,14 @@ class _ChatsHeader extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _HeaderIconButton(
-                    asset: PyreIcons.usersAdd,
+                    asset: PyreIcons.actionAddFriends,
+                    artworkFrame: true,
                     onTap: onAddFriends,
                   ),
                   const SizedBox(width: 8),
                   _HeaderIconButton(
-                    asset: PyreIcons.sendOutline,
+                    asset: PyreIcons.actionSendPlane,
+                    artworkFrame: true,
                     onTap: onGoCamera,
                   ),
                 ],
@@ -612,39 +614,42 @@ class _ChatsHeader extends StatelessWidget {
 }
 
 class _HeaderIconButton extends StatelessWidget {
-  const _HeaderIconButton({required this.asset, this.onTap});
+  const _HeaderIconButton({
+    required this.asset,
+    this.onTap,
+    this.artworkFrame = false,
+  });
 
   final String asset;
   final VoidCallback? onTap;
+  final bool artworkFrame;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white.withValues(alpha: 0.055),
+      color: artworkFrame
+          ? Colors.transparent
+          : Colors.white.withValues(alpha: 0.055),
       shape: const CircleBorder(),
       child: InkWell(
         onTap: onTap,
         customBorder: const CircleBorder(),
         child: Container(
-          width: 42,
-          height: 42,
+          width: 44,
+          height: 44,
           alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.085),
-            ),
-          ),
-          child: ColorFiltered(
-            colorFilter: const ColorFilter.mode(
-              PyreColors.onEmber,
-              BlendMode.srcIn,
-            ),
-            child: PyreIcon(
-              asset: asset,
-              size: 22,
-              opacity: onTap == null ? 0.35 : 1,
-            ),
+          decoration: artworkFrame
+              ? null
+              : BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.085),
+                  ),
+                ),
+          child: PyreIcon(
+            asset: asset,
+            size: artworkFrame ? 44 : 25,
+            opacity: onTap == null ? 0.35 : 1,
           ),
         ),
       ),

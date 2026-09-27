@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:pyrechat_flutter/app/app_bootstrap.dart';
+import 'package:pyrechat_flutter/services/appearance_prefs.dart';
 import 'package:pyrechat_flutter/services/pyre_notifications.dart';
 import 'package:pyrechat_flutter/theme/pyre_scroll_behavior.dart';
 import 'package:pyrechat_flutter/theme/pyre_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  unawaited(AppearancePrefs.instance.load());
   PyreNotifications.instance.init();
   runApp(const PyreChatApp());
 }

@@ -239,7 +239,7 @@ class _AddFriendsScreenState extends State<AddFriendsScreen> {
     return Scaffold(
       backgroundColor: PyreColors.night,
       body: PyreNightBackdrop(
-        mood: PyreNightMood.night,
+        mood: PyreSurfaceMood.addFriends,
         showEmbers: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

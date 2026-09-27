@@ -3,6 +3,29 @@ import 'package:flutter/material.dart';
 /// Individual icons cropped from `icon_sheet.png` — transparency preserved.
 abstract final class PyreIcons {
   static const _base = 'assets/icons';
+  static const _v2 = 'assets/icons/v2';
+
+  // Operator-approved ember/ivory icon family.
+  static const navChatInactive = '$_v2/nav_chat_inactive.webp';
+  static const navChatActive = '$_v2/nav_chat_active.webp';
+  static const navPyreInactive = '$_v2/nav_pyre_inactive.webp';
+  static const navPyreActive = '$_v2/nav_pyre_active.webp';
+  static const navCameraInactive = '$_v2/nav_camera_inactive.webp';
+  static const navCameraActive = '$_v2/nav_camera_active.webp';
+  static const navProfileInactive = '$_v2/nav_profile_inactive.webp';
+  static const navProfileActive = '$_v2/nav_profile_active.webp';
+  static const actionSearch = '$_v2/action_search.webp';
+  static const actionAddFriends = '$_v2/action_add_friends.webp';
+  static const actionSendPlane = '$_v2/action_send_plane.webp';
+  static const actionGroups = '$_v2/action_groups.webp';
+  static const actionUnread = '$_v2/action_unread.webp';
+  static const actionPin = '$_v2/action_pin.webp';
+  static const actionGallery = '$_v2/action_gallery.webp';
+  static const actionBell = '$_v2/action_bell.webp';
+  static const actionLock = '$_v2/action_lock.webp';
+  static const actionVoice = '$_v2/action_voice.webp';
+  static const actionVideo = '$_v2/action_video.webp';
+  static const actionSettings = '$_v2/action_settings.webp';
 
   // Tabs & brand
   static const flame = '$_base/flame.png';

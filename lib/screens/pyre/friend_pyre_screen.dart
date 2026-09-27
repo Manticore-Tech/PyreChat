@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pyrechat_flutter/theme/pyre_theme.dart';
 import 'package:pyrechat_flutter/widgets/animated_pyre_fire.dart';
+import 'package:pyrechat_flutter/widgets/pyre_glass_surface.dart';
 import 'package:pyrechat_flutter/widgets/pyre_night_backdrop.dart';
 
 class FriendPyreScreen extends StatelessWidget {
@@ -24,7 +25,7 @@ class FriendPyreScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: PyreColors.night,
       body: PyreNightBackdrop(
-        mood: PyreNightMood.sunset,
+        mood: PyreSurfaceMood.friendPyre,
         child: SafeArea(
           child: ListView(
             padding: const EdgeInsets.fromLTRB(18, 10, 18, 32),
@@ -171,15 +172,18 @@ class _ActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Opacity(
       opacity: enabled ? 1 : 0.48,
-      child: Material(
-        color: PyreColors.nightCardStrong,
-        borderRadius: BorderRadius.circular(22),
-        child: InkWell(
-          onTap: enabled ? onTap : null,
-          borderRadius: BorderRadius.circular(22),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-            child: Row(
+      child: PyreGlassSurface(
+        tone: PyreGlassTone.strong,
+        radius: 22,
+        padding: EdgeInsets.zero,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: enabled ? onTap : null,
+            borderRadius: BorderRadius.circular(22),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+              child: Row(
               children: [
                 Container(
                   width: 48,
@@ -224,7 +228,8 @@ class _ActionCard extends StatelessWidget {
                   Icons.chevron_right_rounded,
                   color: PyreColors.nightMuted,
                 ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

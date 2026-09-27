@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:pyrechat_flutter/app/app_bootstrap.dart';
 import 'package:pyrechat_flutter/models/user.dart';
+import 'package:pyrechat_flutter/screens/profile/appearance_screen.dart';
 import 'package:pyrechat_flutter/services/chat_draft_store.dart';
 import 'package:pyrechat_flutter/services/pyre_api.dart';
 import 'package:pyrechat_flutter/services/session_store.dart';
 import 'package:pyrechat_flutter/theme/pyre_theme.dart';
 import 'package:pyrechat_flutter/widgets/logout_dialog.dart';
 import 'package:pyrechat_flutter/widgets/pyre_avatar.dart';
+import 'package:pyrechat_flutter/widgets/pyre_glass_surface.dart';
+import 'package:pyrechat_flutter/widgets/pyre_icon.dart';
 import 'package:pyrechat_flutter/widgets/pyre_night_backdrop.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -62,7 +65,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       backgroundColor: PyreColors.night,
       body: PyreNightBackdrop(
-        mood: PyreNightMood.night,
+        mood: PyreSurfaceMood.settings,
         showEmbers: false,
         child: ListView(
           padding: EdgeInsets.fromLTRB(18, top + 10, 18, 30),
@@ -92,15 +95,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
             const SizedBox(height: 18),
-            Container(
+            PyreGlassSurface(
+              tone: PyreGlassTone.strong,
+              radius: 22,
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: PyreColors.nightCardStrong,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.06),
-                ),
-              ),
               child: Row(
                 children: [
                   PyreAvatar(
@@ -141,19 +139,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const SizedBox(height: 24),
+            const _SectionLabel('APPEARANCE'),
+            const SizedBox(height: 8),
+            _SettingsGroup(
+              children: [
+                _SettingsRow(
+                  icon: Icons.palette_outlined,
+                  title: 'Background & style',
+                  subtitle:
+                      'Choose your scene and how strongly it shows through the interface.',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const AppearanceScreen(),
+                      ),
+                    );
+                  },
+                  showChevron: true,
+                ),
+              ],
+            ),
+            const SizedBox(height: 22),
             const _SectionLabel('MESSAGING'),
             const SizedBox(height: 8),
             const _SettingsGroup(
               children: [
                 _SettingsRow(
-                  icon: Icons.notifications_none_rounded,
+                  asset: PyreIcons.actionBell,
                   title: 'Notifications',
                   subtitle:
                       'Direct messages can notify you. Mute any conversation from its chat menu.',
                 ),
                 _Divider(),
                 _SettingsRow(
-                  icon: Icons.push_pin_outlined,
+                  asset: PyreIcons.actionPin,
                   title: 'Conversation order',
                   subtitle:
                       'Long-press a chat to pin it to the top or intentionally send it to the bottom.',
@@ -166,7 +185,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const _SettingsGroup(
               children: [
                 _SettingsRow(
-                  icon: Icons.local_fire_department_outlined,
+                  asset: PyreIcons.navPyreActive,
                   title: 'Quiet by design',
                   subtitle:
                       'Visiting a Pyre does not create streaks, scores, or “come back” notifications.',
@@ -179,7 +198,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const _SettingsGroup(
               children: [
                 _SettingsRow(
-                  icon: Icons.shield_outlined,
+                  asset: PyreIcons.actionLock,
                   title: 'Account safety',
                   subtitle:
                       'Recovery and secure Android session storage are active in this alpha.',
@@ -249,14 +268,11 @@ class _SettingsGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: PyreColors.nightCard,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.055),
-        ),
-      ),
+    return PyreGlassSurface(
+      tone: PyreGlassTone.standard,
+      radius: 22,
+      padding: EdgeInsets.zero,
+      shadow: false,
       child: Column(children: children),
     );
   }
@@ -264,31 +280,48 @@ class _SettingsGroup extends StatelessWidget {
 
 class _SettingsRow extends StatelessWidget {
   const _SettingsRow({
-    required this.icon,
+    this.icon,
+    this.asset,
     required this.title,
     required this.subtitle,
-  });
+    this.onTap,
+    this.showChevron = false,
+  }) : assert(icon != null || asset != null);
 
-  final IconData icon;
+  final IconData? icon;
+  final String? asset;
   final String title;
   final String subtitle;
+  final VoidCallback? onTap;
+  final bool showChevron;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: PyreColors.ember.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(13),
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+          if (asset != null)
+            SizedBox(
+              width: 40,
+              height: 40,
+              child: Center(
+                child: PyreIcon(asset: asset!, size: 38),
+              ),
+            )
+          else
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: PyreColors.ember.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(icon, color: PyreColors.emberGlow, size: 19),
             ),
-            child: Icon(icon, color: PyreColors.emberGlow, size: 19),
-          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -315,7 +348,19 @@ class _SettingsRow extends StatelessWidget {
               ],
             ),
           ),
+          if (showChevron) ...[
+            const SizedBox(width: 8),
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Icon(
+                Icons.chevron_right_rounded,
+                color: PyreColors.nightMuted,
+                size: 20,
+              ),
+            ),
+          ],
         ],
+      ),
       ),
     );
   }

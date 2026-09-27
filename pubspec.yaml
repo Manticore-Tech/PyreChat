@@ -29,18 +29,16 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: assets/app_icon.png
-  adaptive_icon_background: "#FC7A1A"
-  adaptive_icon_foreground: assets/adaptive_foreground.png
+  image_path: assets/app_icon.jpg
+  adaptive_icon_background: "#08090B"
+  adaptive_icon_foreground: assets/app_icon.jpg
   remove_alpha_ios: true
 
 flutter_native_splash:
-  color: "#FC7A1A"
-  image: assets/splash_flame.png
+  color: "#08090B"
   android_12:
-    color: "#FC7A1A"
-    image: assets/splash_flame.png
-    icon_background_color: "#FC7A1A"
+    color: "#08090B"
+    icon_background_color: "#08090B"
   android: true
   ios: true
   web: false
@@ -50,6 +48,12 @@ flutter:
   assets:
     - assets/icon_sheet.png
     - assets/icons/
+    - assets/icons/v2/
     - assets/pyre_flame.png
     - assets/ChatGPT Image Aug 28, 2026, 07_34_39 PM (1).png
     - assets/ChatGPT Image Aug 28, 2026, 07_34_39 PM (2).png
+    - assets/login_background.jpg
+    - assets/background_night.webp
+    - assets/background_sunset.webp
+    - assets/background_ember.webp
+    - assets/app_icon.jpg

@@ -1,30 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pyrechat_flutter/features/auth/widgets/idle_flame_view.dart';
 import 'package:pyrechat_flutter/pages/onboarding/widgets/onboarding_choice_slide.dart';
-import 'package:pyrechat_flutter/widgets/pyre_logo.dart';
+import 'package:pyrechat_flutter/widgets/pyre_campfire_backdrop.dart';
 
 void main() {
-  testWidgets('PyreFire splits into the two auth choices', (tester) async {
+  testWidgets('launch screen exposes primary auth choices', (tester) async {
+    var loginTapped = false;
+    var signupTapped = false;
+
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: OnboardingChoiceSlide(
-            onLogin: () {},
-            onSignup: () {},
+            onLogin: () => loginTapped = true,
+            onSignup: () => signupTapped = true,
           ),
         ),
       ),
     );
 
-    expect(find.byType(IdleFlameView), findsOneWidget);
-    expect(find.byType(PyreLogo), findsOneWidget);
+    expect(find.byType(PyreCampfireBackdrop), findsOneWidget);
+    expect(find.text('PyreChat'), findsOneWidget);
+    expect(find.text('Private conversations, yours to keep.'), findsOneWidget);
+    expect(find.text('Create account'), findsOneWidget);
+    expect(find.text('Log in'), findsOneWidget);
 
-    await tester.tap(find.byType(IdleFlameView));
+    await tester.tap(find.text('Log in'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 1500));
+    expect(loginTapped, isTrue);
 
-    expect(find.byType(IdleFlameView), findsNothing);
-    expect(find.byType(PyreLogo), findsNWidgets(2));
+    await tester.tap(find.text('Create account'));
+    await tester.pump();
+    expect(signupTapped, isTrue);
   });
 }

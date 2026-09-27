@@ -3,6 +3,7 @@ import 'package:pyrechat_flutter/models/user.dart';
 import 'package:pyrechat_flutter/theme/pyre_theme.dart';
 import 'package:pyrechat_flutter/widgets/animated_pyre_fire.dart';
 import 'package:pyrechat_flutter/widgets/pyre_avatar.dart';
+import 'package:pyrechat_flutter/widgets/pyre_glass_surface.dart';
 import 'package:pyrechat_flutter/widgets/pyre_night_backdrop.dart';
 
 class PyrePageScreen extends StatelessWidget {
@@ -24,7 +25,7 @@ class PyrePageScreen extends StatelessWidget {
     final seed = user.id.hashCode.abs();
 
     return PyreNightBackdrop(
-      mood: PyreNightMood.sunset,
+      mood: PyreSurfaceMood.myPyre,
       child: ListView(
         padding: EdgeInsets.fromLTRB(18, top + 16, 18, 118),
         children: [
@@ -119,16 +120,12 @@ class PyrePageScreen extends StatelessWidget {
                 'Direct chat remains the realtime conversation layer for alpha.',
           ),
           const SizedBox(height: 18),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.22),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.07),
-              ),
-            ),
-            child: const Row(
+          const PyreGlassSurface(
+            tone: PyreGlassTone.quiet,
+            radius: 20,
+            padding: EdgeInsets.all(16),
+            shadow: false,
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(
@@ -207,22 +204,10 @@ class _PyreInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return PyreGlassSurface(
+      tone: PyreGlassTone.standard,
+      radius: 22,
       padding: const EdgeInsets.fromLTRB(16, 15, 16, 15),
-      decoration: BoxDecoration(
-        color: PyreColors.nightCard,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.065),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.18),
-            blurRadius: 18,
-            offset: const Offset(0, 9),
-          ),
-        ],
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

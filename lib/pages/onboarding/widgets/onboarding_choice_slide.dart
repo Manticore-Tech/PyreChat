@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:pyrechat_flutter/auth/auth_motion.dart';
-import 'package:pyrechat_flutter/features/auth/widgets/idle_flame_view.dart';
-import 'package:pyrechat_flutter/theme/pyre_theme.dart';
-import 'package:pyrechat_flutter/widgets/pyre_logo.dart';
+import 'package:pyrechat_flutter/widgets/pyre_campfire_backdrop.dart';
 
-/// Log in / Sign up choice. Split dissolve is a local effect — taps go to parent pages.
 class OnboardingChoiceSlide extends StatefulWidget {
   const OnboardingChoiceSlide({
     super.key,
@@ -20,130 +16,125 @@ class OnboardingChoiceSlide extends StatefulWidget {
   State<OnboardingChoiceSlide> createState() => OnboardingChoiceSlideState();
 }
 
-class OnboardingChoiceSlideState extends State<OnboardingChoiceSlide>
-    with SingleTickerProviderStateMixin {
-  static const _splitDuration = Duration(milliseconds: 1400);
-
-  late final AnimationController _split;
-
-  @override
-  void initState() {
-    super.initState();
-    _split = AnimationController(vsync: this, duration: _splitDuration);
-  }
-
-  @override
-  void dispose() {
-    _split.dispose();
-    super.dispose();
-  }
-
-  void _ignite() {
-    if (_split.isAnimating || _split.value >= 1) return;
-    _split.forward();
-  }
-
-  /// Collapse Log in / Sign up back to the single idle flame. Returns true if handled.
-  Future<bool> collapseToIdle() async {
-    if (_split.value <= 0.001) return false;
-    await _split.animateTo(
-      0,
-      duration: AuthMotion.backDuration,
-      curve: AuthMotion.back,
-    );
-    return true;
-  }
-
-  bool get showsSplit => _split.value > 0.001 || _split.isAnimating;
+class OnboardingChoiceSlideState extends State<OnboardingChoiceSlide> {
+  Future<bool> collapseToIdle() async => false;
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final flame = size.shortestSide * 0.38;
-    final splitFlame = size.shortestSide * 0.28;
-    final center = Offset(size.width * 0.5, size.height * 0.5);
-
-    return ColoredBox(
-      color: PyreColors.ember,
-      child: AnimatedBuilder(
-        animation: _split,
-        builder: (context, _) {
-          final t = _split.value;
-          if (!showsSplit) {
-            return IdleFlameView(
-              flame: flame,
-              center: center,
-              onIgnite: _ignite,
-            );
-          }
-
-          final separate = AuthMotion.phase(t, 0.18, 0.78, AuthMotion.flow);
-          final shrink = AuthMotion.phase(t, 0.32, 0.92, AuthMotion.flow);
-          final flameSize = flame + (splitFlame - flame) * shrink;
-          final spread = (flameSize * 0.74 + 18) * separate;
-          // Plus badge extends past the plain flame — hide sign-up once they overlap.
-          final signUpOpacity = separate < 0.08 ? 0.0 : 1.0;
-
-          return Stack(
-            fit: StackFit.expand,
-            clipBehavior: Clip.none,
-            children: [
-              _SplitFlame(
-                center: Offset(center.dx + spread, center.dy),
-                size: flameSize,
-                kind: PyreFlameKind.signUp,
-                opacity: signUpOpacity,
-                onTap: widget.onSignup,
-              ),
-              _SplitFlame(
-                center: Offset(center.dx - spread, center.dy),
-                size: flameSize,
-                kind: PyreFlameKind.signIn,
-                onTap: widget.onLogin,
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// Same layout as [IdleFlameView]'s flame: centered on [center], no label.
-class _SplitFlame extends StatelessWidget {
-  const _SplitFlame({
-    required this.center,
-    required this.size,
-    required this.onTap,
-    required this.kind,
-    this.opacity = 1,
-  });
-
-  final Offset center;
-  final double size;
-  final VoidCallback onTap;
-  final PyreFlameKind kind;
-  final double opacity;
-
-  @override
-  Widget build(BuildContext context) {
-    if (opacity <= 0) return const SizedBox.shrink();
-
-    return Positioned(
-      left: center.dx - size / 2,
-      top: center.dy - size / 2,
-      child: Semantics(
-        button: true,
-        enabled: true,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () {
-            HapticFeedback.selectionClick();
-            onTap();
-          },
-          child: Opacity(
-            opacity: opacity,
-            child: PyreLogo(size: size, kind: kind),
+    return PyreCampfireBackdrop(
+      dim: 0.06,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 20, 22, 24),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxHeight < 620;
+              return Column(
+                children: [
+                  const Spacer(flex: 2),
+                  Column(
+                    children: [
+                      Text(
+                        'PyreChat',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: compact ? 38 : 46,
+                          height: .96,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -1.9,
+                          shadows: const [
+                            Shadow(
+                              color: Colors.black54,
+                              blurRadius: 18,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Private conversations, yours to keep.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: .82),
+                          fontSize: compact ? 13 : 15,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: .1,
+                          shadows: const [
+                            Shadow(color: Colors.black87, blurRadius: 12),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(flex: 5),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 440),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        FilledButton(
+                          onPressed: () {
+                            HapticFeedback.selectionClick();
+                            widget.onSignup();
+                          },
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFFF6F2C),
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size.fromHeight(56),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            textStyle: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                            elevation: 0,
+                          ),
+                          child: const Text('Create account'),
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton(
+                          onPressed: () {
+                            HapticFeedback.selectionClick();
+                            widget.onLogin();
+                          },
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.black.withValues(alpha: .48),
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size.fromHeight(56),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                              side: BorderSide(
+                                color: Colors.white.withValues(alpha: .18),
+                              ),
+                            ),
+                            textStyle: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                            elevation: 0,
+                          ),
+                          child: const Text('Log in'),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          'By continuing, you agree to PyreChat\'s Terms and Privacy Policy.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: .52),
+                            fontSize: 11,
+                            height: 1.35,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),

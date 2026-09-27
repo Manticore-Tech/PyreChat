@@ -14,10 +14,26 @@ class PyreBottomNav extends StatelessWidget {
   final ValueChanged<int> onSelected;
 
   static const _items = [
-    (icon: PyreIcons.chat, label: 'Chats'),
-    (icon: PyreIcons.flame, label: 'Pyre'),
-    (icon: PyreIcons.camera, label: 'Camera'),
-    (icon: PyreIcons.profile, label: 'You'),
+    (
+      inactive: PyreIcons.navChatInactive,
+      active: PyreIcons.navChatActive,
+      label: 'Chats',
+    ),
+    (
+      inactive: PyreIcons.navPyreInactive,
+      active: PyreIcons.navPyreActive,
+      label: 'Pyre',
+    ),
+    (
+      inactive: PyreIcons.navCameraInactive,
+      active: PyreIcons.navCameraActive,
+      label: 'Camera',
+    ),
+    (
+      inactive: PyreIcons.navProfileInactive,
+      active: PyreIcons.navProfileActive,
+      label: 'You',
+    ),
   ];
 
   @override
@@ -53,13 +69,11 @@ class PyreBottomNav extends StatelessWidget {
           children: List.generate(_items.length, (index) {
             final item = _items[index];
             final selected = selectedIndex == index;
-            final pyre = index == 1;
             return Expanded(
               child: _NavItem(
-                asset: item.icon,
+                asset: selected ? item.active : item.inactive,
                 label: item.label,
                 selected: selected,
-                pyre: pyre,
                 onTap: () => onSelected(index),
               ),
             );
@@ -75,14 +89,12 @@ class _NavItem extends StatelessWidget {
     required this.asset,
     required this.label,
     required this.selected,
-    required this.pyre,
     required this.onTap,
   });
 
   final String asset;
   final String label;
   final bool selected;
-  final bool pyre;
   final VoidCallback onTap;
 
   @override
@@ -97,10 +109,10 @@ class _NavItem extends StatelessWidget {
         child: AnimatedContainer(
           duration: PyreMotion.standard,
           curve: PyreMotion.enter,
-          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
           decoration: BoxDecoration(
-            color: selected && !pyre
-                ? Colors.white.withValues(alpha: 0.055)
+            color: selected
+                ? Colors.white.withValues(alpha: 0.045)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(24),
           ),
@@ -110,63 +122,22 @@ class _NavItem extends StatelessWidget {
               AnimatedContainer(
                 duration: PyreMotion.standard,
                 curve: PyreMotion.enter,
-                width: pyre ? 38 : 30,
-                height: pyre ? 38 : 30,
+                width: selected ? 35 : 31,
+                height: selected ? 35 : 31,
                 alignment: Alignment.center,
-                decoration: pyre
-                    ? BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: selected
-                              ? const [
-                                  Color(0xFFFFA14A),
-                                  Color(0xFFFF5B27),
-                                  Color(0xFFD83A2D),
-                                ]
-                              : [
-                                  PyreColors.ember.withValues(alpha: 0.22),
-                                  PyreColors.emberDeep.withValues(alpha: 0.18),
-                                ],
-                        ),
-                        border: Border.all(
-                          color: selected
-                              ? PyreColors.emberGold.withValues(alpha: 0.86)
-                              : PyreColors.emberGlow.withValues(alpha: 0.18),
-                        ),
-                        boxShadow: selected
-                            ? [
-                                BoxShadow(
-                                  color: PyreColors.emberHot.withValues(alpha: 0.42),
-                                  blurRadius: 18,
-                                  spreadRadius: -2,
-                                ),
-                              ]
-                            : null,
-                      )
-                    : null,
-                child: ColorFiltered(
-                  colorFilter: ColorFilter.mode(
-                    selected
-                        ? (pyre ? PyreColors.nightText : PyreColors.emberGlow)
-                        : PyreColors.nightMuted,
-                    BlendMode.srcIn,
-                  ),
-                  child: PyreIcon(
-                    asset: asset,
-                    size: pyre ? 22 : 22,
-                  ),
+                child: PyreIcon(
+                  asset: asset,
+                  size: selected ? 35 : 31,
                 ),
               ),
-              const SizedBox(height: 3),
+              const SizedBox(height: 2),
               Text(
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: selected
-                      ? (pyre ? PyreColors.emberGlow : PyreColors.nightText)
+                      ? PyreColors.emberGlow
                       : PyreColors.nightMuted,
                   fontSize: 10.5,
                   height: 1,

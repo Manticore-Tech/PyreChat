@@ -1,197 +1,222 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
-import 'package:pyrechat_flutter/theme/pyre_theme.dart';
+import 'package:pyrechat_flutter/services/appearance_prefs.dart';
 
-enum PyreNightMood { night, sunset, ember }
+enum PyreSurfaceMood {
+  chats,
+  chatThread,
+  addFriends,
+  myPyre,
+  friendPyre,
+  profile,
+  settings,
+}
+
+class _PyreBackdropSpec {
+  const _PyreBackdropSpec({
+    required this.asset,
+    required this.alignment,
+    required this.topShade,
+    required this.midShade,
+    required this.bottomShade,
+    this.glowColor,
+    this.glowAlpha = 0,
+    this.glowAlignment = Alignment.center,
+  });
+
+  final String asset;
+  final Alignment alignment;
+  final double topShade;
+  final double midShade;
+  final double bottomShade;
+  final Color? glowColor;
+  final double glowAlpha;
+  final Alignment glowAlignment;
+
+  _PyreBackdropSpec copyWith({
+    String? asset,
+    Alignment? alignment,
+  }) {
+    return _PyreBackdropSpec(
+      asset: asset ?? this.asset,
+      alignment: alignment ?? this.alignment,
+      topShade: topShade,
+      midShade: midShade,
+      bottomShade: bottomShade,
+      glowColor: glowColor,
+      glowAlpha: glowAlpha,
+      glowAlignment: glowAlignment,
+    );
+  }
+}
 
 class PyreNightBackdrop extends StatelessWidget {
   const PyreNightBackdrop({
     super.key,
     required this.child,
-    this.mood = PyreNightMood.night,
+    this.mood = PyreSurfaceMood.chats,
     this.showEmbers = true,
   });
 
   final Widget child;
-  final PyreNightMood mood;
+  final PyreSurfaceMood mood;
+
+  // Retained for source compatibility with screens that intentionally choose
+  // a calmer background. The photographic assets already contain restrained
+  // embers, so no procedural particles are drawn on top.
   final bool showEmbers;
+
+  _PyreBackdropSpec get _moodSpec => switch (mood) {
+        PyreSurfaceMood.chats => const _PyreBackdropSpec(
+            asset: 'assets/background_night.webp',
+            alignment: Alignment(0, -0.62),
+            topShade: 0.38,
+            midShade: 0.30,
+            bottomShade: 0.76,
+            glowColor: Color(0xFFFF6A2A),
+            glowAlpha: 0.08,
+            glowAlignment: Alignment(0.72, -0.14),
+          ),
+        PyreSurfaceMood.chatThread => const _PyreBackdropSpec(
+            asset: 'assets/background_night.webp',
+            alignment: Alignment(0, -0.42),
+            topShade: 0.60,
+            midShade: 0.49,
+            bottomShade: 0.88,
+          ),
+        PyreSurfaceMood.addFriends => const _PyreBackdropSpec(
+            asset: 'assets/background_night.webp',
+            alignment: Alignment(-0.10, -0.55),
+            topShade: 0.48,
+            midShade: 0.37,
+            bottomShade: 0.82,
+          ),
+        PyreSurfaceMood.myPyre => const _PyreBackdropSpec(
+            asset: 'assets/background_sunset.webp',
+            alignment: Alignment(0, -0.36),
+            topShade: 0.24,
+            midShade: 0.18,
+            bottomShade: 0.63,
+            glowColor: Color(0xFFFF7A2F),
+            glowAlpha: 0.12,
+            glowAlignment: Alignment(0.10, 0.10),
+          ),
+        PyreSurfaceMood.friendPyre => const _PyreBackdropSpec(
+            asset: 'assets/background_sunset.webp',
+            alignment: Alignment(0.10, -0.30),
+            topShade: 0.28,
+            midShade: 0.21,
+            bottomShade: 0.68,
+            glowColor: Color(0xFFFF934E),
+            glowAlpha: 0.10,
+            glowAlignment: Alignment(0.26, 0.04),
+          ),
+        PyreSurfaceMood.profile => const _PyreBackdropSpec(
+            asset: 'assets/background_ember.webp',
+            alignment: Alignment(0, -0.48),
+            topShade: 0.40,
+            midShade: 0.31,
+            bottomShade: 0.78,
+            glowColor: Color(0xFFFF5F2B),
+            glowAlpha: 0.11,
+            glowAlignment: Alignment(0.50, -0.08),
+          ),
+        PyreSurfaceMood.settings => const _PyreBackdropSpec(
+            asset: 'assets/background_night.webp',
+            alignment: Alignment(0, -0.45),
+            topShade: 0.62,
+            midShade: 0.52,
+            bottomShade: 0.90,
+          ),
+      };
+
+  _PyreBackdropSpec _resolveSpec(PyreBackgroundMode mode) {
+    final spec = _moodSpec;
+    return switch (mode) {
+      PyreBackgroundMode.dynamic => spec,
+      PyreBackgroundMode.night => spec.copyWith(
+          asset: 'assets/background_night.webp',
+          alignment: const Alignment(0, -0.50),
+        ),
+      PyreBackgroundMode.sunset => spec.copyWith(
+          asset: 'assets/background_sunset.webp',
+          alignment: const Alignment(0, -0.34),
+        ),
+      PyreBackgroundMode.ember => spec.copyWith(
+          asset: 'assets/background_ember.webp',
+          alignment: const Alignment(0, -0.42),
+        ),
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        RepaintBoundary(
-          child: CustomPaint(
-            painter: _PyreNightPainter(
-              mood: mood,
-              showEmbers: showEmbers,
+    final appearance = AppearancePrefs.instance;
+
+    return AnimatedBuilder(
+      animation: appearance,
+      builder: (context, _) {
+        final spec = _resolveSpec(appearance.backgroundMode);
+        final visibility = appearance.backgroundVisibility;
+        final extraShade = (1.0 - visibility) * 0.42;
+
+        double shade(double base) {
+          return (base + extraShade).clamp(0.0, 0.96).toDouble();
+        }
+
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            const ColoredBox(color: Color(0xFF08090B)),
+            Positioned.fill(
+              child: Image.asset(
+                spec.asset,
+                fit: BoxFit.cover,
+                alignment: spec.alignment,
+                filterQuality: FilterQuality.high,
+              ),
             ),
-          ),
-        ),
-        child,
-      ],
-    );
-  }
-}
-
-class _PyreNightPainter extends CustomPainter {
-  const _PyreNightPainter({
-    required this.mood,
-    required this.showEmbers,
-  });
-
-  final PyreNightMood mood;
-  final bool showEmbers;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-
-    final colors = switch (mood) {
-      PyreNightMood.night => const [
-          Color(0xFF08111B),
-          Color(0xFF0C1724),
-          Color(0xFF111925),
-          Color(0xFF171516),
-        ],
-      PyreNightMood.sunset => const [
-          Color(0xFF14101B),
-          Color(0xFF2A1730),
-          Color(0xFF70302B),
-          Color(0xFFDF633D),
-        ],
-      PyreNightMood.ember => const [
-          Color(0xFF100C0D),
-          Color(0xFF1C1111),
-          Color(0xFF361716),
-          Color(0xFF5D241C),
-        ],
-    };
-
-    canvas.drawRect(
-      rect,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: colors,
-          stops: const [0, 0.38, 0.72, 1],
-        ).createShader(rect),
-    );
-
-    final horizon = size.height * 0.55;
-    final glowCenter = Offset(size.width * 0.72, horizon * 0.92);
-    final glowRect = Rect.fromCircle(
-      center: glowCenter,
-      radius: size.shortestSide * 0.65,
-    );
-    canvas.drawCircle(
-      glowCenter,
-      size.shortestSide * 0.65,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [
-            const Color(0xFFFF8248).withValues(
-              alpha: mood == PyreNightMood.night ? 0.10 : 0.25,
+            if (spec.glowColor != null && spec.glowAlpha > 0)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        center: spec.glowAlignment,
+                        radius: 0.94,
+                        colors: [
+                          spec.glowColor!.withValues(
+                            alpha: spec.glowAlpha * visibility,
+                          ),
+                          Colors.transparent,
+                        ],
+                        stops: const [0, 1],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: shade(spec.topShade)),
+                        Colors.black.withValues(alpha: shade(spec.midShade)),
+                        Colors.black.withValues(alpha: shade(spec.bottomShade)),
+                      ],
+                      stops: const [0, 0.46, 1],
+                    ),
+                  ),
+                ),
+              ),
             ),
-            Colors.transparent,
+            child,
           ],
-        ).createShader(glowRect),
-    );
-
-    final mountainBack = Path()
-      ..moveTo(0, horizon)
-      ..lineTo(size.width * 0.12, horizon - size.height * 0.06)
-      ..lineTo(size.width * 0.25, horizon - size.height * 0.015)
-      ..lineTo(size.width * 0.42, horizon - size.height * 0.11)
-      ..lineTo(size.width * 0.58, horizon - size.height * 0.035)
-      ..lineTo(size.width * 0.73, horizon - size.height * 0.13)
-      ..lineTo(size.width * 0.9, horizon - size.height * 0.045)
-      ..lineTo(size.width, horizon - size.height * 0.08)
-      ..lineTo(size.width, horizon + size.height * 0.22)
-      ..lineTo(0, horizon + size.height * 0.22)
-      ..close();
-
-    canvas.drawPath(
-      mountainBack,
-      Paint()..color = const Color(0xFF0A1118).withValues(alpha: 0.78),
-    );
-
-    final mountainFront = Path()
-      ..moveTo(0, horizon + size.height * 0.08)
-      ..lineTo(size.width * 0.16, horizon + size.height * 0.02)
-      ..lineTo(size.width * 0.29, horizon + size.height * 0.07)
-      ..lineTo(size.width * 0.47, horizon - size.height * 0.015)
-      ..lineTo(size.width * 0.63, horizon + size.height * 0.06)
-      ..lineTo(size.width * 0.82, horizon)
-      ..lineTo(size.width, horizon + size.height * 0.04)
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-
-    canvas.drawPath(
-      mountainFront,
-      Paint()..color = const Color(0xFF080C10).withValues(alpha: 0.92),
-    );
-
-    final lakeTop = horizon + size.height * 0.1;
-    final lakeRect = Rect.fromLTWH(
-      0,
-      lakeTop,
-      size.width,
-      math.max(0, size.height - lakeTop),
-    );
-    if (lakeRect.height > 0) {
-      canvas.drawRect(
-        lakeRect,
-        Paint()
-          ..shader = LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              const Color(0xFF111A22).withValues(alpha: 0.80),
-              const Color(0xFF05090D).withValues(alpha: 0.98),
-            ],
-          ).createShader(lakeRect),
-      );
-    }
-
-    final ridge = Paint()
-      ..color = const Color(0xFFFF8D52).withValues(alpha: 0.12)
-      ..strokeWidth = 1;
-    for (var i = 0; i < 5; i++) {
-      final y = lakeTop + 18 + i * 18;
-      canvas.drawLine(
-        Offset(size.width * (0.45 - i * 0.02), y),
-        Offset(size.width * (0.78 + i * 0.018), y),
-        ridge,
-      );
-    }
-
-    if (showEmbers) {
-      final emberPaint = Paint()..color = PyreColors.emberGlow;
-      for (var i = 0; i < 22; i++) {
-        final fx = ((i * 73) % 101) / 101;
-        final fy = ((i * 47) % 89) / 89;
-        final x = size.width * fx;
-        final y = size.height * (0.16 + fy * 0.62);
-        final radius = i % 5 == 0 ? 1.6 : 0.8;
-        canvas.drawCircle(
-          Offset(x, y),
-          radius,
-          Paint()
-            ..color = emberPaint.color.withValues(
-              alpha: 0.14 + (i % 4) * 0.06,
-            ),
         );
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _PyreNightPainter oldDelegate) {
-    return oldDelegate.mood != mood || oldDelegate.showEmbers != showEmbers;
+      },
+    );
   }
 }
