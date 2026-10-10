@@ -15,23 +15,21 @@ class PyreBottomNav extends StatelessWidget {
 
   static const _items = [
     (
-      inactive: PyreIcons.navChatInactive,
-      active: PyreIcons.navChatActive,
+      icon: Icons.chat_bubble_outline_rounded,
+      selectedIcon: Icons.chat_bubble_rounded,
+      brandAsset: null,
       label: 'Chats',
     ),
     (
-      inactive: PyreIcons.navPyreInactive,
-      active: PyreIcons.navPyreActive,
-      label: 'Pyre',
-    ),
-    (
-      inactive: PyreIcons.navCameraInactive,
-      active: PyreIcons.navCameraActive,
+      icon: Icons.photo_camera_outlined,
+      selectedIcon: Icons.photo_camera_rounded,
+      brandAsset: null,
       label: 'Camera',
     ),
     (
-      inactive: PyreIcons.navProfileInactive,
-      active: PyreIcons.navProfileActive,
+      icon: Icons.person_outline_rounded,
+      selectedIcon: Icons.person_rounded,
+      brandAsset: null,
       label: 'You',
     ),
   ];
@@ -40,45 +38,36 @@ class PyreBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final textScale = MediaQuery.textScalerOf(context).scale(1);
     final extraHeight = ((textScale - 1).clamp(0.0, 0.8)) * 28;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
-    return SafeArea(
-      minimum: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-      child: Container(
-        height: 78 + extraHeight,
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: const Color(0xF20E1116),
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.08),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.42),
-              blurRadius: 28,
-              offset: const Offset(0, 14),
-            ),
-            BoxShadow(
-              color: PyreColors.ember.withValues(alpha: 0.08),
-              blurRadius: 26,
-              spreadRadius: -4,
-            ),
-          ],
+    return Container(
+      width: double.infinity,
+      height: 66 + bottomInset + extraHeight,
+      padding: EdgeInsets.fromLTRB(8, 4, 8, bottomInset + 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A0D11),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
         ),
-        child: Row(
-          children: List.generate(_items.length, (index) {
-            final item = _items[index];
-            final selected = selectedIndex == index;
-            return Expanded(
-              child: _NavItem(
-                asset: selected ? item.active : item.inactive,
-                label: item.label,
-                selected: selected,
-                onTap: () => onSelected(index),
-              ),
-            );
-          }),
-        ),
+      ),
+      child: Row(
+        children: List.generate(_items.length, (index) {
+          final item = _items[index];
+          final selected = selectedIndex == index;
+          return Expanded(
+            child: _NavItem(
+              icon: item.icon,
+              selectedIcon: item.selectedIcon,
+              brandAsset: item.brandAsset,
+              label: item.label,
+              position: index + 1,
+              total: _items.length,
+              selected: selected,
+              onTap: () => onSelected(index),
+            ),
+          );
+        }),
       ),
     );
   }
@@ -86,35 +75,47 @@ class PyreBottomNav extends StatelessWidget {
 
 class _NavItem extends StatelessWidget {
   const _NavItem({
-    required this.asset,
+    this.icon,
+    this.selectedIcon,
+    this.brandAsset,
     required this.label,
+    required this.position,
+    required this.total,
     required this.selected,
     required this.onTap,
-  });
+  }) : assert(icon != null || brandAsset != null);
 
-  final String asset;
+  final IconData? icon;
+  final IconData? selectedIcon;
+  final String? brandAsset;
   final String label;
+  final int position;
+  final int total;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     return Semantics(
       selected: selected,
       button: true,
-      label: label,
+      label: [label, 'tab', position.toString(), 'of', total.toString()].join(' '),
+      hint: selected ? 'Current tab' : 'Switch tabs',
+      onTap: onTap,
+      excludeSemantics: true,
       child: InkWell(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: AnimatedContainer(
           duration: PyreMotion.standard,
           curve: PyreMotion.enter,
-          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
           decoration: BoxDecoration(
             color: selected
-                ? Colors.white.withValues(alpha: 0.045)
+                ? Colors.white.withValues(alpha: 0.055)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(15),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -122,24 +123,31 @@ class _NavItem extends StatelessWidget {
               AnimatedContainer(
                 duration: PyreMotion.standard,
                 curve: PyreMotion.enter,
-                width: selected ? 35 : 31,
-                height: selected ? 35 : 31,
+                width: 31,
+                height: 31,
                 alignment: Alignment.center,
-                child: PyreIcon(
-                  asset: asset,
-                  size: selected ? 35 : 31,
-                ),
+                child: brandAsset != null
+                    ? PyreIcon(
+                        asset: brandAsset!,
+                        size: selected ? 28 : 25,
+                        opacity: selected ? 1 : 0.62,
+                      )
+                    : Icon(
+                        selected ? (selectedIcon ?? icon) : icon,
+                        size: selected ? 25 : 23,
+                        color: selected ? accent : PyreColors.nightMuted,
+                      ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 1),
               Text(
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: selected
-                      ? PyreColors.emberGlow
+                      ? accent
                       : PyreColors.nightMuted,
-                  fontSize: 10.5,
+                  fontSize: 10,
                   height: 1,
                   fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                 ),

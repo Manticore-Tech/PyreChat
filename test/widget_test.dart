@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pyrechat_flutter/services/pyre_client.dart';
 import 'package:pyrechat_flutter/widgets/pyre_logo.dart';
 
 void main() {
@@ -16,5 +17,6 @@ void main() {
 
     expect(find.byType(PyreLogo), findsOneWidget);
     expect(find.byType(Image), findsOneWidget);
+    expect(PyreClient(), isA<PyreClient>());
   });
 }

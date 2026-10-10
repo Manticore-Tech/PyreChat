@@ -43,15 +43,15 @@ class SignupQuestion extends StatelessWidget {
                       padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
                       decoration: BoxDecoration(
                         color: PyreColors.paper.withValues(alpha: 0.97),
-                        borderRadius: BorderRadius.circular(28),
+                        borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: PyreColors.paper.withValues(alpha: 0.46),
                         ),
                         boxShadow: [
                           BoxShadow(
                             color: PyreColors.ink.withValues(alpha: 0.10),
-                            blurRadius: 32,
-                            offset: const Offset(0, 16),
+                            blurRadius: 22,
+                            offset: const Offset(0, 10),
                           ),
                         ],
                       ),
@@ -59,18 +59,13 @@ class SignupQuestion extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const Align(
-                            alignment: Alignment.centerLeft,
-                            child: _SignupEyebrow(),
-                          ),
-                          const SizedBox(height: 18),
                           Text(
                             title,
                             style: const TextStyle(
-                              fontSize: 34,
-                              height: 1.02,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -1,
+                              fontSize: 30,
+                              height: 1.06,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.75,
                               color: PyreColors.ink,
                             ),
                           ),
@@ -97,12 +92,18 @@ class SignupQuestion extends StatelessWidget {
                                 color: PyreColors.error.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(14),
                               ),
-                              child: Text(
-                                error!,
-                                style: const TextStyle(
-                                  color: PyreColors.errorOnPaper,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
+                              child: Semantics(
+                                liveRegion: true,
+                                label: 'Sign up error: $error',
+                                child: ExcludeSemantics(
+                                  child: Text(
+                                    error!,
+                                    style: const TextStyle(
+                                      color: PyreColors.errorOnPaper,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -133,7 +134,7 @@ class SignupQuestion extends StatelessWidget {
                                     ),
                                   )
                                 : const Icon(Icons.arrow_forward_rounded),
-                            label: Text(busy ? 'One sec…' : 'Continue'),
+                            label: Text(busy ? 'Please wait…' : 'Continue'),
                           ),
                         ],
                       ),
@@ -149,26 +150,3 @@ class SignupQuestion extends StatelessWidget {
   }
 }
 
-class _SignupEyebrow extends StatelessWidget {
-  const _SignupEyebrow();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: PyreColors.emberWash,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: const Text(
-        'CREATE YOUR PYRE',
-        style: TextStyle(
-          color: PyreColors.emberDeep,
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0.9,
-        ),
-      ),
-    );
-  }
-}

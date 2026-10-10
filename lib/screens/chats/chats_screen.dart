@@ -1,16 +1,20 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:pyrechat_flutter/models/capture_send_target.dart';
 import 'package:pyrechat_flutter/models/chat_preview.dart';
 import 'package:pyrechat_flutter/models/user.dart';
 import 'package:pyrechat_flutter/screens/chats/add_friends_screen.dart';
 import 'package:pyrechat_flutter/screens/chats/chat_thread_screen.dart';
+import 'package:pyrechat_flutter/screens/chats/pyre_rcs_screen.dart';
+import 'package:pyrechat_flutter/services/chat_cache.dart';
 import 'package:pyrechat_flutter/services/chat_order_prefs.dart';
 import 'package:pyrechat_flutter/services/pyre_api.dart';
 import 'package:pyrechat_flutter/services/pyre_client.dart';
 import 'package:pyrechat_flutter/services/pyre_hub.dart';
+import 'package:pyrechat_flutter/services/pyre_notifications.dart';
 import 'package:pyrechat_flutter/theme/pyre_theme.dart';
 import 'package:pyrechat_flutter/widgets/chat_row.dart';
-import 'package:pyrechat_flutter/widgets/pyre_icon.dart';
 import 'package:pyrechat_flutter/widgets/pyre_night_backdrop.dart';
 import 'package:pyrechat_flutter/widgets/swipe_back_scope.dart';
 
@@ -38,35 +42,139 @@ class ChatsScreenState extends State<ChatsScreen>
     with AutomaticKeepAliveClientMixin {
   late final PyreClient _client;
   final _orderPrefs = ChatOrderPrefs();
+  final _cache = ChatCache.instance;
   List<ChatPreview> _chats = [];
   Map<String, ChatPinPosition> _pinPositions = const {};
   bool _loading = true;
   int _loadGeneration = 0;
   String? _error;
   _ChatFilter _filter = _ChatFilter.all;
+  String? _activeChatId;
+  String? _pendingOpenChatId;
+  bool _pendingOpenFromNotification = false;
+  bool _networkUnavailable = false;
+  bool _remoteRefreshSucceeded = false;
   late PyreHubStatus _hubStatus;
+  final Map<String, Map<String, String>> _typingByChat = {};
+  final Map<String, Timer> _typingExpiry = {};
 
   @override
   bool get wantKeepAlive => true;
+
+  String? get activeChatId => _activeChatId;
 
   @override
   void initState() {
     super.initState();
     _client = widget.client ?? PyreClient();
     _hubStatus = widget.hub.status;
+    widget.hub.addListener(_onHubEvent);
     widget.hub.addStatusListener(_onHubStatus);
-    reload();
+    unawaited(_restoreCacheAndRefresh());
   }
 
   @override
   void dispose() {
+    widget.hub.removeListener(_onHubEvent);
     widget.hub.removeStatusListener(_onHubStatus);
+    for (final timer in _typingExpiry.values) {
+      timer.cancel();
+    }
+    _typingExpiry.clear();
     super.dispose();
   }
 
   void _onHubStatus(PyreHubStatus status) {
     if (!mounted || status == _hubStatus) return;
     setState(() => _hubStatus = status);
+  }
+
+  void _onHubEvent(Map<String, dynamic> event) {
+    final type = event['type']?.toString();
+    final chatId = (event['conversationId'] ??
+            event['chatId'] ??
+            event['conversation_id'])
+        ?.toString()
+        .trim();
+    if (chatId == null || chatId.isEmpty) return;
+
+    if (type == 'typing') {
+      final from = event['from']?.toString().trim();
+      if (from == null || from.isEmpty || from == widget.user.id) return;
+      final key = '$chatId:$from';
+      _typingExpiry.remove(key)?.cancel();
+      final active = event['active'] != false;
+      if (!active) {
+        final current = _typingByChat[chatId];
+        if (current != null) {
+          current.remove(from);
+          if (current.isEmpty) _typingByChat.remove(chatId);
+          if (mounted) setState(() {});
+        }
+        return;
+      }
+
+      final rawName = event['fromName']?.toString().trim();
+      final name = rawName == null || rawName.isEmpty ? 'Someone' : rawName;
+      _typingByChat.putIfAbsent(chatId, () => <String, String>{})[from] = name;
+      _typingExpiry[key] = Timer(const Duration(milliseconds: 4000), () {
+        final current = _typingByChat[chatId];
+        if (current == null) return;
+        current.remove(from);
+        if (current.isEmpty) _typingByChat.remove(chatId);
+        _typingExpiry.remove(key);
+        if (mounted) setState(() {});
+      });
+      if (mounted) setState(() {});
+      return;
+    }
+
+    if (type == 'chat') {
+      final current = _typingByChat.remove(chatId);
+      if (current != null) {
+        for (final from in current.keys) {
+          _typingExpiry.remove('$chatId:$from')?.cancel();
+        }
+        if (mounted) setState(() {});
+      }
+    }
+  }
+
+  String? _typingLabelFor(ChatPreview chat) {
+    final names = _typingByChat[chat.id]?.values.toList() ?? const <String>[];
+    if (names.isEmpty) return null;
+
+    String first(String value) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) return 'Someone';
+      return trimmed.split(RegExp(r'\s+')).first;
+    }
+
+    if (names.length == 1) return '${first(names.first)} is typing…';
+    if (names.length == 2) {
+      return '${first(names[0])} and ${first(names[1])} are typing…';
+    }
+    return '${names.length} people are typing…';
+  }
+
+  Future<void> _restoreCacheAndRefresh() async {
+    final cachedFuture = _cache.readChats(widget.user.id);
+    unawaited(reload(silent: true));
+
+    final cached = await cachedFuture;
+    if (!mounted || _remoteRefreshSucceeded || cached == null) return;
+
+    final pinPositions = await _orderPrefs.positionsFor(
+      cached.map((chat) => chat.id),
+    );
+    if (!mounted || _remoteRefreshSucceeded) return;
+    setState(() {
+      _chats = cached;
+      _pinPositions = pinPositions;
+      _loading = false;
+      _error = null;
+    });
+    _maybeOpenPendingConversation();
   }
 
   Future<void> reload({bool silent = false}) async {
@@ -89,24 +197,113 @@ class ChatsScreenState extends State<ChatsScreen>
         _pinPositions = pinPositions;
         _loading = false;
         _error = null;
+        _networkUnavailable = false;
+        _remoteRefreshSucceeded = true;
       });
+      unawaited(_cache.writeChats(widget.user.id, chats));
+      _maybeOpenPendingConversation();
     } on PyreApiException catch (e) {
       if (!mounted || generation != _loadGeneration) return;
-      if (!silent) {
-        setState(() {
+      final offline = e.statusCode == null;
+      _remoteRefreshSucceeded = false;
+      setState(() {
+        _networkUnavailable = offline || _networkUnavailable;
+        _loading = false;
+        if (!silent && _chats.isEmpty) {
           _error = e.message;
-          _loading = false;
-        });
-      }
+        }
+      });
     } catch (_) {
       if (!mounted || generation != _loadGeneration) return;
-      if (!silent) {
-        setState(() {
+      _remoteRefreshSucceeded = false;
+      setState(() {
+        _networkUnavailable = true;
+        _loading = false;
+        if (!silent && _chats.isEmpty) {
           _error = 'Could not load chats';
-          _loading = false;
-        });
-      }
+        }
+      });
     }
+  }
+
+  ChatPreview? _chatForId(String chatId) {
+    for (final chat in _chats) {
+      if (chat.id == chatId) return chat;
+    }
+    return null;
+  }
+
+  Future<void> openConversation(
+    String chatId, {
+    bool fromNotification = false,
+  }) async {
+    final normalized = chatId.trim();
+    if (normalized.isEmpty || _activeChatId == normalized) return;
+    final chat = _chatForId(normalized);
+    if (chat == null) {
+      _pendingOpenChatId = normalized;
+      _pendingOpenFromNotification =
+          _pendingOpenFromNotification || fromNotification;
+      return;
+    }
+    _pendingOpenChatId = null;
+    final notificationOpen =
+        _pendingOpenFromNotification || fromNotification;
+    _pendingOpenFromNotification = false;
+    await _openChat(chat, fromNotification: notificationOpen);
+  }
+
+  void _maybeOpenPendingConversation() {
+    final chatId = _pendingOpenChatId;
+    if (chatId == null || _chatForId(chatId) == null || !mounted) return;
+    final fromNotification = _pendingOpenFromNotification;
+    scheduleMicrotask(() {
+      if (mounted) {
+        unawaited(
+          openConversation(
+            chatId,
+            fromNotification: fromNotification,
+          ),
+        );
+      }
+    });
+  }
+
+  Future<void> _openChat(
+    ChatPreview chat, {
+    bool fromNotification = false,
+  }) async {
+    final cameraTarget = _captureTargetFor(chat);
+    if (mounted) setState(() => _activeChatId = chat.id);
+    unawaited(
+      PyreNotifications.instance.setContext(
+        foreground: true,
+        activeConversationId: chat.id,
+      ),
+    );
+    await Navigator.of(context).push(
+      chatThreadRoute(
+        ChatThreadScreen(
+          chatId: chat.id,
+          hub: widget.hub,
+          title: chat.title,
+          me: widget.user,
+          peerUserId: chat.avatarUserId,
+          requirePrivateText: chat.requiresPrivateText,
+          openedFromNotification: fromNotification,
+          onGoCamera: () => widget.onGoCamera?.call(cameraTarget),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    setState(() => _activeChatId = null);
+    unawaited(
+      PyreNotifications.instance.setContext(
+        foreground: true,
+        activeConversationId: null,
+      ),
+    );
+    await reload(silent: true);
   }
 
   List<ChatPreview> get _visibleChats {
@@ -125,7 +322,17 @@ class ChatsScreenState extends State<ChatsScreen>
       };
     }
 
-    filtered.sort((a, b) => rank(a).compareTo(rank(b)));
+    // Preserve server recency within each pin bucket. Dart's List.sort is
+    // not stable, so sorting only by pin rank can shuffle equally ranked chats.
+    final originalPositions = <String, int>{
+      for (var index = 0; index < filtered.length; index++)
+        filtered[index].id: index,
+    };
+    filtered.sort((a, b) {
+      final rankComparison = rank(a).compareTo(rank(b));
+      if (rankComparison != 0) return rankComparison;
+      return originalPositions[a.id]!.compareTo(originalPositions[b.id]!);
+    });
     return filtered;
   }
 
@@ -150,6 +357,12 @@ class ChatsScreenState extends State<ChatsScreen>
       MaterialPageRoute(builder: (_) => const AddFriendsScreen()),
     );
     if (mounted) await reload(silent: true);
+  }
+
+  Future<void> _openRcs() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => PyreRcsInboxScreen(user: widget.user)),
+    );
   }
 
   CaptureSendTarget? _captureTargetFor(ChatPreview chat) {
@@ -204,6 +417,7 @@ class ChatsScreenState extends State<ChatsScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (ctx) {
+        final accent = Theme.of(ctx).colorScheme.primary;
         Widget tile({
           required IconData icon,
           required String title,
@@ -214,7 +428,7 @@ class ChatsScreenState extends State<ChatsScreen>
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color: PyreColors.ember.withValues(alpha: 0.12),
+                color: accent.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: PyreColors.emberGlow, size: 20),
@@ -337,6 +551,7 @@ class ChatsScreenState extends State<ChatsScreen>
         await _client.muteChat(chat.id, muted: false);
       } else if (action == 'clear') {
         await _client.clearChat(chat.id);
+        await _cache.deleteThread(widget.user.id, chat.id);
       }
       if (mounted) await reload(silent: true);
     } on PyreApiException catch (e) {
@@ -358,6 +573,7 @@ class ChatsScreenState extends State<ChatsScreen>
           _ChatsHeader(
             user: widget.user,
             onAddFriends: _openAddFriends,
+            onRcs: _openRcs,
             onGoCamera: () => widget.onGoCamera?.call(null),
           ),
           _FilterBar(
@@ -365,7 +581,11 @@ class ChatsScreenState extends State<ChatsScreen>
             unopenedCount: _unopenedCount,
             onFilter: (f) => setState(() => _filter = f),
           ),
-          _HubStatusStrip(status: _hubStatus),
+          _ChatsConnectionStatus(
+            status: _hubStatus,
+            networkUnavailable: _networkUnavailable,
+            showingCachedChats: _networkUnavailable && _chats.isNotEmpty,
+          ),
           Expanded(child: _body()),
         ],
       ),
@@ -378,7 +598,30 @@ class ChatsScreenState extends State<ChatsScreen>
         child: CircularProgressIndicator(color: PyreColors.emberDeep),
       );
     }
+    if (_networkUnavailable && _chats.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'You are offline. No saved chats are available on this device yet.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: PyreColors.nightText,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 12),
+              FilledButton(onPressed: reload, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      );
+    }
     if (_error != null && _chats.isEmpty) {
+      final message = _error!;
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -386,7 +629,7 @@ class ChatsScreenState extends State<ChatsScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                _error!,
+                message,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: PyreColors.nightText,
@@ -437,7 +680,7 @@ class ChatsScreenState extends State<ChatsScreen>
       onRefresh: () => reload(silent: true),
       child: ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(14, 2, 14, 118),
+        padding: const EdgeInsets.fromLTRB(10, 2, 10, 106),
         itemCount: chats.length + 1,
         itemBuilder: (context, i) {
           if (i == chats.length) {
@@ -450,20 +693,8 @@ class ChatsScreenState extends State<ChatsScreen>
             chat: chat,
             meId: widget.user.id,
             pinPosition: _pinFor(chat),
-            onTap: () async {
-              await Navigator.of(context).push(
-                chatThreadRoute(
-                  ChatThreadScreen(
-                    chatId: chat.id,
-                    hub: widget.hub,
-                    title: chat.title,
-                    me: widget.user,
-                    onGoCamera: () => widget.onGoCamera?.call(cameraTarget),
-                  ),
-                ),
-              );
-              if (mounted) await reload(silent: true);
-            },
+            typingLabel: _typingLabelFor(chat),
+            onTap: () => _openChat(chat),
             onLongPress: () => _showChatOptions(chat),
             onCameraTap: () => widget.onGoCamera?.call(cameraTarget),
           );
@@ -473,31 +704,38 @@ class ChatsScreenState extends State<ChatsScreen>
   }
 }
 
-class _HubStatusStrip extends StatelessWidget {
-  const _HubStatusStrip({required this.status});
+class _ChatsConnectionStatus extends StatelessWidget {
+  const _ChatsConnectionStatus({
+    required this.status,
+    required this.networkUnavailable,
+    required this.showingCachedChats,
+  });
 
   final PyreHubStatus status;
+  final bool networkUnavailable;
+  final bool showingCachedChats;
 
   @override
   Widget build(BuildContext context) {
-    if (status == PyreHubStatus.connected) return const SizedBox.shrink();
+    if (!networkUnavailable && status == PyreHubStatus.connected) {
+      return const SizedBox.shrink();
+    }
 
-    final label = switch (status) {
-      PyreHubStatus.disconnected => 'Offline',
-      PyreHubStatus.connecting => 'Connecting…',
-      PyreHubStatus.reconnecting => 'Reconnecting…',
-      PyreHubStatus.connected => '',
-    };
+    final label = networkUnavailable
+        ? showingCachedChats
+            ? 'You are offline — showing saved chats'
+            : 'You are offline'
+        : 'Reconnecting…';
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 5),
-      color: Colors.black.withValues(alpha: 0.16),
+      color: const Color(0xFF111111),
       child: Text(
         label,
         textAlign: TextAlign.center,
         style: const TextStyle(
-          color: PyreColors.onEmber,
+          color: Color(0xFFB5B5BA),
           fontSize: 12,
           fontWeight: FontWeight.w700,
         ),
@@ -510,11 +748,13 @@ class _ChatsHeader extends StatelessWidget {
   const _ChatsHeader({
     required this.user,
     required this.onAddFriends,
+    required this.onRcs,
     this.onGoCamera,
   });
 
   final PyreUser user;
   final VoidCallback onAddFriends;
+  final VoidCallback onRcs;
   final VoidCallback? onGoCamera;
 
   @override
@@ -524,90 +764,64 @@ class _ChatsHeader extends StatelessWidget {
         user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : '?';
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(18, top + 18, 18, 14),
-      child: SizedBox(
-        height: 48,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            const Text(
-              'Chats',
-              style: TextStyle(
-                color: PyreColors.onEmber,
-                fontSize: 26,
+      padding: EdgeInsets.fromLTRB(16, top + 14, 12, 10),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.06),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.07),
+              ),
+            ),
+            child: Text(
+              initial,
+              style: const TextStyle(
+                color: PyreColors.emberGlow,
                 fontWeight: FontWeight.w900,
-                letterSpacing: -0.8,
-                shadows: [
-                  Shadow(
-                    color: Color(0x33000000),
-                    blurRadius: 12,
-                    offset: Offset(0, 3),
-                  ),
-                ],
+                fontSize: 15,
               ),
             ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: PyreColors.nightCardStrong,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.10),
-                        width: 1.2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.30),
-                          blurRadius: 18,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      initial,
-                      style: const TextStyle(
-                        color: PyreColors.emberGlow,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 17,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _HeaderIconButton(
-                    asset: PyreIcons.actionSearch,
-                    onTap: onAddFriends,
-                  ),
-                ],
+          ),
+          const SizedBox(width: 11),
+          const Expanded(
+            child: Text(
+              'Chats',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: PyreColors.nightText,
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.9,
+                height: 1,
               ),
             ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _HeaderIconButton(
-                    asset: PyreIcons.actionAddFriends,
-                    artworkFrame: true,
-                    onTap: onAddFriends,
-                  ),
-                  const SizedBox(width: 8),
-                  _HeaderIconButton(
-                    asset: PyreIcons.actionSendPlane,
-                    artworkFrame: true,
-                    onTap: onGoCamera,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+          _HeaderIconButton(
+            icon: Icons.forum_outlined,
+            accented: true,
+            tooltip: 'RCS messages',
+            onTap: onRcs,
+          ),
+          const SizedBox(width: 2),
+          _HeaderIconButton(
+            icon: Icons.person_add_alt_1_rounded,
+            accented: true,
+            tooltip: 'Add friends',
+            onTap: onAddFriends,
+          ),
+          const SizedBox(width: 6),
+          _HeaderIconButton(
+            icon: Icons.photo_camera_outlined,
+            tooltip: 'Open camera',
+            onTap: onGoCamera,
+          ),
+        ],
       ),
     );
   }
@@ -615,45 +829,50 @@ class _ChatsHeader extends StatelessWidget {
 
 class _HeaderIconButton extends StatelessWidget {
   const _HeaderIconButton({
-    required this.asset,
+    required this.icon,
     this.onTap,
-    this.artworkFrame = false,
+    this.accented = false,
+    this.tooltip,
   });
 
-  final String asset;
+  final IconData icon;
   final VoidCallback? onTap;
-  final bool artworkFrame;
+  final bool accented;
+  final String? tooltip;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: artworkFrame
-          ? Colors.transparent
-          : Colors.white.withValues(alpha: 0.055),
+    final accent = Theme.of(context).colorScheme.primary;
+    final enabled = onTap != null;
+    final button = Material(
+      color: Colors.transparent,
       shape: const CircleBorder(),
       child: InkWell(
         onTap: onTap,
         customBorder: const CircleBorder(),
         child: Container(
-          width: 44,
-          height: 44,
+          width: 42,
+          height: 42,
           alignment: Alignment.center,
-          decoration: artworkFrame
-              ? null
-              : BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.085),
-                  ),
-                ),
-          child: PyreIcon(
-            asset: asset,
-            size: artworkFrame ? 44 : 25,
-            opacity: onTap == null ? 0.35 : 1,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: accented
+                  ? accent.withValues(alpha: 0.24)
+                  : Colors.white.withValues(alpha: 0.07),
+            ),
+          ),
+          child: Icon(
+            icon,
+            size: 24,
+            color: enabled
+                ? (accented ? accent : PyreColors.nightText)
+                : PyreColors.nightMuted.withValues(alpha: 0.35),
           ),
         ),
       ),
     );
+    return tooltip == null ? button : Tooltip(message: tooltip!, child: button);
   }
 }
 
@@ -671,22 +890,15 @@ class _FilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 52,
-      margin: const EdgeInsets.fromLTRB(18, 0, 18, 10),
-      padding: const EdgeInsets.all(5),
+      height: 44,
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+      padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.055),
-        borderRadius: BorderRadius.circular(26),
+        color: Colors.white.withValues(alpha: 0.035),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.085),
+          color: Colors.white.withValues(alpha: 0.055),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: PyreColors.ink.withValues(alpha: 0.08),
-            blurRadius: 22,
-            offset: const Offset(0, 10),
-          ),
-        ],
       ),
       child: Row(
         children: [
@@ -741,26 +953,17 @@ class _FilterChip extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(21),
+          borderRadius: BorderRadius.circular(11),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOutCubic,
-            height: 42,
+            height: 38,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: selected
-                  ? PyreColors.ember.withValues(alpha: 0.18)
+                  ? Colors.white.withValues(alpha: 0.075)
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(21),
-              boxShadow: selected
-                  ? [
-                      BoxShadow(
-                        color: PyreColors.ember.withValues(alpha: 0.12),
-                        blurRadius: 14,
-                        offset: const Offset(0, 6),
-                      ),
-                    ]
-                  : null,
+              borderRadius: BorderRadius.circular(11),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,

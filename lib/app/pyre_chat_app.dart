@@ -10,7 +10,7 @@ class PyreChatApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PyreChat',
+      title: 'Pyre Social',
       debugShowCheckedModeBanner: false,
       theme: pyreTheme(),
 

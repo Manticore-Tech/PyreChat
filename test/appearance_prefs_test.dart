@@ -29,6 +29,38 @@ void main() {
     expect(restored.backgroundVisibility, closeTo(0.65, 0.001));
   });
 
+
+  test('theme tuning values persist', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final prefs = await SharedPreferences.getInstance();
+    final appearance = AppearancePrefs(prefs: prefs);
+
+    await appearance.setAccentHue(205);
+    await appearance.setAccentSaturation(0.61);
+    await appearance.setAccentValue(0.84);
+    await appearance.setGlassStrength(1.2);
+    await appearance.setBackgroundBlur(9);
+
+    final restored = AppearancePrefs(prefs: prefs);
+    await restored.load();
+
+    expect(restored.accentHue, closeTo(205, 0.001));
+    expect(restored.accentSaturation, closeTo(0.61, 0.001));
+    expect(restored.accentValue, closeTo(0.84, 0.001));
+    expect(restored.glassStrength, closeTo(1.2, 0.001));
+    expect(restored.backgroundBlur, closeTo(9, 0.001));
+  });
+
+  test('custom background mode requires a saved image', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final prefs = await SharedPreferences.getInstance();
+    final appearance = AppearancePrefs(prefs: prefs);
+
+    await appearance.setBackgroundMode(PyreBackgroundMode.custom);
+
+    expect(appearance.backgroundMode, PyreBackgroundMode.dynamic);
+  });
+
   test('appearance reset restores PyreChat defaults', () async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     final prefs = await SharedPreferences.getInstance();

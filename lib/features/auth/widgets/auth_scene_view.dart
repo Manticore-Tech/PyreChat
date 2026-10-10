@@ -124,6 +124,7 @@ class AuthSceneView extends StatelessWidget {
       username: f.signupUsername,
       birthday: f.birthday,
       password: f.signupPassword,
+      acceptedTerms: f.signupAcceptedTerms,
       onDisplayNameChanged: (v) {
         f.displayName = v;
         flow.touchForms();
@@ -138,6 +139,11 @@ class AuthSceneView extends StatelessWidget {
       },
       onPasswordChanged: (v) {
         f.signupPassword = v;
+        flow.touchForms();
+      },
+      onAcceptedTermsChanged: (value) {
+        f.signupAcceptedTerms = value;
+        f.signupError = null;
         flow.touchForms();
       },
       onNext: onSignupNext,

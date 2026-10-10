@@ -1,4 +1,4 @@
-enum ChatDeliveryState { delivered, sending, failed }
+enum ChatDeliveryState { delivered, sending, queued, failed }
 
 class ChatMessage {
   const ChatMessage({
@@ -14,6 +14,9 @@ class ChatMessage {
     this.viewedAt,
     this.openedAt,
     this.screenshotAt,
+    this.deliveredAt,
+    this.readAt,
+    this.encrypted = false,
     this.deliveryState = ChatDeliveryState.delivered,
     this.localEcho = false,
   });
@@ -30,6 +33,9 @@ class ChatMessage {
   final String? viewedAt;
   final String? openedAt;
   final String? screenshotAt;
+  final String? deliveredAt;
+  final String? readAt;
+  final bool encrypted;
   final ChatDeliveryState deliveryState;
   final bool localEcho;
 
@@ -51,6 +57,9 @@ class ChatMessage {
     String? viewedAt,
     String? openedAt,
     String? screenshotAt,
+    String? deliveredAt,
+    String? readAt,
+    bool? encrypted,
     ChatDeliveryState? deliveryState,
     bool? localEcho,
   }) {
@@ -67,12 +76,40 @@ class ChatMessage {
       viewedAt: viewedAt ?? this.viewedAt,
       openedAt: openedAt ?? this.openedAt,
       screenshotAt: screenshotAt ?? this.screenshotAt,
+      deliveredAt: deliveredAt ?? this.deliveredAt,
+      readAt: readAt ?? this.readAt,
+      encrypted: encrypted ?? this.encrypted,
       deliveryState: deliveryState ?? this.deliveryState,
       localEcho: localEcho ?? this.localEcho,
     );
   }
 
+  Map<String, dynamic> toCacheJson() => {
+        'id': id,
+        'sender_id': senderId,
+        'kind': kind,
+        'body': body,
+        'created_at': createdAt,
+        'display_name': displayName,
+        'username': username,
+        if (mediaKey != null) 'media_key': mediaKey,
+        if (snapKind != null) 'snap_kind': snapKind,
+        if (viewedAt != null) 'viewed_at': viewedAt,
+        if (openedAt != null) 'opened_at': openedAt,
+        if (screenshotAt != null) 'screenshot_at': screenshotAt,
+        if (deliveredAt != null) 'delivered_at': deliveredAt,
+        if (readAt != null) 'read_at': readAt,
+        'encrypted': encrypted,
+        'delivery_state': deliveryState.name,
+        'local_echo': localEcho,
+      };
+
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    final deliveryStateName = json['delivery_state']?.toString();
+    final deliveryState = ChatDeliveryState.values.firstWhere(
+      (value) => value.name == deliveryStateName,
+      orElse: () => ChatDeliveryState.delivered,
+    );
     return ChatMessage(
       id: json['id'] as String,
       senderId: json['sender_id'] as String,
@@ -87,6 +124,11 @@ class ChatMessage {
       viewedAt: json['viewed_at'] as String?,
       openedAt: json['opened_at'] as String?,
       screenshotAt: json['screenshot_at'] as String?,
+      deliveredAt: json['delivered_at'] as String?,
+      readAt: json['read_at'] as String?,
+      encrypted: json['encrypted'] == true || json['kind'] == 'mls',
+      deliveryState: deliveryState,
+      localEcho: json['local_echo'] == true,
     );
   }
 }

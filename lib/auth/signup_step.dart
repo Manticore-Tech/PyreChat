@@ -3,6 +3,7 @@ enum SignupStep {
   username,
   birthday,
   password,
+  terms,
 }
 
 extension SignupStepLabels on SignupStep {
@@ -16,6 +17,8 @@ extension SignupStepLabels on SignupStep {
         return 'When were you born?';
       case SignupStep.password:
         return 'Create a password';
+      case SignupStep.terms:
+        return 'Agree before joining';
     }
   }
 
@@ -29,6 +32,8 @@ extension SignupStepLabels on SignupStep {
         return 'You must be at least 13.';
       case SignupStep.password:
         return 'At least 8 characters.';
+      case SignupStep.terms:
+        return 'Review the Terms, Privacy Policy, and safety rules.';
     }
   }
 
@@ -41,6 +46,8 @@ extension SignupStepLabels on SignupStep {
       case SignupStep.birthday:
         return SignupStep.password;
       case SignupStep.password:
+        return SignupStep.terms;
+      case SignupStep.terms:
         return null;
     }
   }
@@ -55,6 +62,8 @@ extension SignupStepLabels on SignupStep {
         return SignupStep.username;
       case SignupStep.password:
         return SignupStep.birthday;
+      case SignupStep.terms:
+        return SignupStep.password;
     }
   }
 }

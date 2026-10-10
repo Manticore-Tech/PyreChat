@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:pyrechat_flutter/models/chat_preview.dart';
+import 'package:pyrechat_flutter/models/user.dart';
 import 'package:pyrechat_flutter/services/chat_order_prefs.dart';
 import 'package:pyrechat_flutter/theme/pyre_theme.dart';
+import 'package:pyrechat_flutter/widgets/pyre_avatar.dart';
 import 'package:pyrechat_flutter/widgets/pyre_icon.dart';
 
 class ChatRow extends StatelessWidget {
@@ -13,6 +15,7 @@ class ChatRow extends StatelessWidget {
     this.onLongPress,
     this.onCameraTap,
     this.pinPosition = ChatPinPosition.none,
+    this.typingLabel,
   });
 
   final ChatPreview chat;
@@ -21,6 +24,7 @@ class ChatRow extends StatelessWidget {
   final VoidCallback? onLongPress;
   final VoidCallback? onCameraTap;
   final ChatPinPosition pinPosition;
+  final String? typingLabel;
 
   static const _snapRed = Color(0xFFFF6557);
 
@@ -30,36 +34,28 @@ class ChatRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final status = _statusLabel();
     final time = chat.timeLabel;
-    final subtitle = time.isEmpty ? status : '$status · $time';
-    final snapLine = chat.lastKind == 'snap';
+    final isTyping = typingLabel?.trim().isNotEmpty == true;
+    final subtitle =
+        isTyping ? typingLabel!.trim() : (time.isEmpty ? status : '$status · $time');
+    final snapLine = chat.lastKind == 'snap' && !isTyping;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 1),
       child: Material(
-        color: PyreColors.nightCard,
-        borderRadius: BorderRadius.circular(20),
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
           onLongPress: onLongPress,
           child: Container(
-            constraints: const BoxConstraints(minHeight: 72),
-            padding: const EdgeInsets.fromLTRB(12, 9, 9, 9),
+            constraints: const BoxConstraints(minHeight: 70),
+            padding: const EdgeInsets.fromLTRB(12, 9, 8, 9),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: chat.unread > 0
-                    ? PyreColors.ember.withValues(alpha: 0.34)
-                    : Colors.white.withValues(alpha: 0.055),
-              ),
-              boxShadow: [
-                if (chat.unread > 0)
-                  BoxShadow(
-                    color: PyreColors.ember.withValues(alpha: 0.08),
-                    blurRadius: 18,
-                    spreadRadius: -3,
-                  ),
-              ],
+              color: chat.unread > 0
+                  ? Colors.white.withValues(alpha: 0.04)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
               children: [
@@ -79,7 +75,7 @@ class ChatRow extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 color: PyreColors.nightText,
-                                fontSize: 16,
+                                fontSize: 15.5,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: -0.25,
                                 height: 1.08,
@@ -89,9 +85,10 @@ class ChatRow extends StatelessWidget {
                           if (pinPosition != ChatPinPosition.none) ...[
                             const SizedBox(width: 5),
                             pinPosition == ChatPinPosition.top
-                                ? const PyreIcon(
-                                    asset: PyreIcons.actionPin,
-                                    size: 19,
+                                ? const Icon(
+                                    Icons.push_pin_rounded,
+                                    size: 16,
+                                    color: PyreColors.emberGlow,
                                   )
                                 : const Icon(
                                     Icons.vertical_align_bottom_rounded,
@@ -101,15 +98,10 @@ class ChatRow extends StatelessWidget {
                           ],
                           if (chat.muted) ...[
                             const SizedBox(width: 5),
-                            const ColorFiltered(
-                              colorFilter: ColorFilter.mode(
-                                PyreColors.nightMuted,
-                                BlendMode.srcIn,
-                              ),
-                              child: PyreIcon(
-                                asset: PyreIcons.bellMuted,
-                                size: 13,
-                              ),
+                            const Icon(
+                              Icons.notifications_off_outlined,
+                              size: 14,
+                              color: PyreColors.nightMuted,
                             ),
                           ],
                         ],
@@ -163,9 +155,10 @@ class ChatRow extends StatelessWidget {
                       width: 42,
                       height: 42,
                       child: Center(
-                        child: PyreIcon(
-                          asset: PyreIcons.navCameraInactive,
-                          size: 26,
+                        child: Icon(
+                          Icons.photo_camera_outlined,
+                          size: 23,
+                          color: PyreColors.nightMuted,
                         ),
                       ),
                     ),
@@ -234,38 +227,56 @@ class _Avatar extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         switch (chat.avatarKind) {
-          ChatAvatarKind.person => Container(
-              width: 50,
-              height: 50,
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [
-                    PyreColors.emberGlow.withValues(alpha: 0.95),
-                    const Color(0xFF5440A6),
-                  ],
-                ),
-              ),
-              child: CircleAvatar(
-              radius: 23,
-              backgroundColor: HSLColor.fromAHSL(
-                1,
-                chat.avatarHue ?? 28,
-                0.42,
-                0.52,
-              ).toColor(),
-              child: Text(
-                chat.avatarInitials ?? chat.title.characters.first,
-                style: const TextStyle(
-                  color: PyreColors.paper,
-                  fontSize: 19,
-                  fontWeight: FontWeight.w800,
-                ),
+          ChatAvatarKind.person =>
+            chat.avatarUrl != null && chat.avatarUrl!.isNotEmpty
+                ? PyreAvatar(
+                    user: PyreUser(
+                      id: chat.avatarUserId ?? '',
+                      username: chat.title,
+                      displayName: chat.title,
+                      avatarUrl: chat.avatarUrl,
+                    ),
+                    size: 50,
+                    showRing: true,
+                  )
+                : Container(
+                    width: 50,
+                    height: 50,
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [
+                          PyreColors.emberGlow.withValues(alpha: 0.95),
+                          const Color(0xFF5440A6),
+                        ],
+                      ),
+                    ),
+                    child: CircleAvatar(
+                      radius: 23,
+                      backgroundColor: HSLColor.fromAHSL(
+                        1,
+                        chat.avatarHue ?? 28,
+                        0.42,
+                        0.52,
+                      ).toColor(),
+                      child: Text(
+                        chat.avatarInitials ?? chat.title.characters.first,
+                        style: const TextStyle(
+                          color: PyreColors.paper,
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+          ChatAvatarKind.group => const _IconAvatar(
+              child: Icon(
+                Icons.group_rounded,
+                color: PyreColors.paper,
+                size: 23,
               ),
             ),
-            ),
-          ChatAvatarKind.group => _IconAvatar(icon: PyreIcons.users),
           ChatAvatarKind.channel => _IconAvatar(
               child: Text(
                 '#',

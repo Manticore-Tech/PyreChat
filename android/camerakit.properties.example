@@ -1,0 +1,12 @@
+# Copy this file to camerakit.properties and fill it with values from
+# the Snap Camera Kit developer portal. Do not commit camerakit.properties.
+#
+# Camera Kit is disabled unless this explicit internal-evaluation switch is true.
+# Do not enable for production/public use without an approved Camera Kit use case.
+CAMERA_KIT_INTERNAL_EVAL=false
+#
+# The API token must authorize PyreChat's current Android application id.
+CAMERA_KIT_API_TOKEN=
+#
+# One or more Lens Group IDs, comma-separated.
+CAMERA_KIT_LENS_GROUP_IDS=

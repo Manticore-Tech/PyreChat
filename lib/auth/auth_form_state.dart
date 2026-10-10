@@ -11,6 +11,7 @@ class AuthFormState {
   String signupUsername = '';
   String birthday = '';
   String signupPassword = '';
+  bool signupAcceptedTerms = false;
   String? signupError;
   bool signupBusy = false;
 
@@ -20,6 +21,7 @@ class AuthFormState {
     signupUsername = '';
     birthday = '';
     signupPassword = '';
+    signupAcceptedTerms = false;
     signupError = null;
     signupBusy = false;
   }

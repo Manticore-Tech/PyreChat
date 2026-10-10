@@ -35,14 +35,14 @@ class OnboardingChoiceSlideState extends State<OnboardingChoiceSlide> {
                   Column(
                     children: [
                       Text(
-                        'PyreChat',
+                        'Pyre Social',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: compact ? 38 : 46,
-                          height: .96,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -1.9,
+                          fontSize: compact ? 36 : 42,
+                          height: .98,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -1.45,
                           shadows: const [
                             Shadow(
                               color: Colors.black54,
@@ -54,7 +54,7 @@ class OnboardingChoiceSlideState extends State<OnboardingChoiceSlide> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'Private conversations, yours to keep.',
+                        'Chats, Pyres, and your people.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: .82),
@@ -82,9 +82,9 @@ class OnboardingChoiceSlideState extends State<OnboardingChoiceSlide> {
                           style: FilledButton.styleFrom(
                             backgroundColor: const Color(0xFFFF6F2C),
                             foregroundColor: Colors.white,
-                            minimumSize: const Size.fromHeight(56),
+                            minimumSize: const Size.fromHeight(52),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
+                              borderRadius: BorderRadius.circular(14),
                             ),
                             textStyle: const TextStyle(
                               fontSize: 16,
@@ -101,11 +101,11 @@ class OnboardingChoiceSlideState extends State<OnboardingChoiceSlide> {
                             widget.onLogin();
                           },
                           style: FilledButton.styleFrom(
-                            backgroundColor: Colors.black.withValues(alpha: .48),
+                            backgroundColor: Colors.black.withValues(alpha: .38),
                             foregroundColor: Colors.white,
-                            minimumSize: const Size.fromHeight(56),
+                            minimumSize: const Size.fromHeight(52),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
+                              borderRadius: BorderRadius.circular(14),
                               side: BorderSide(
                                 color: Colors.white.withValues(alpha: .18),
                               ),
@@ -120,7 +120,7 @@ class OnboardingChoiceSlideState extends State<OnboardingChoiceSlide> {
                         ),
                         const SizedBox(height: 14),
                         Text(
-                          'By continuing, you agree to PyreChat\'s Terms and Privacy Policy.',
+                          'By continuing, you agree to Pyre Social\'s Terms and Privacy Policy.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: .52),

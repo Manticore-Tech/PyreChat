@@ -5,6 +5,7 @@ import 'package:pyrechat_flutter/auth/auth_form_state.dart';
 import 'package:pyrechat_flutter/auth/birthday_validation.dart';
 import 'package:pyrechat_flutter/auth/signup_step.dart';
 import 'package:pyrechat_flutter/auth/signup_validation.dart';
+import 'package:pyrechat_flutter/services/pyre_external_links.dart';
 import 'package:pyrechat_flutter/theme/pyre_theme.dart';
 import 'package:pyrechat_flutter/widgets/signup_question.dart';
 
@@ -59,6 +60,7 @@ class OnboardingSignupSlideState extends State<OnboardingSignupSlide> {
     _usernameController.clear();
     _birthdayController.clear();
     _passwordController.clear();
+    widget.forms.signupAcceptedTerms = false;
     if (_stepController.hasClients) {
       _stepController.jumpToPage(0);
     }
@@ -89,6 +91,9 @@ class OnboardingSignupSlideState extends State<OnboardingSignupSlide> {
       SignupStep.username => validateUsername(widget.forms.signupUsername),
       SignupStep.birthday => validatePyreBirthday(widget.forms.birthday),
       SignupStep.password => validateSignupPassword(widget.forms.signupPassword),
+      SignupStep.terms => widget.forms.signupAcceptedTerms
+          ? null
+          : 'Accept the Terms and Privacy Policy to create an account.',
     };
     if (error != null) {
       widget.forms.signupError = error;
@@ -218,6 +223,77 @@ class OnboardingSignupSlideState extends State<OnboardingSignupSlide> {
             autofillHints: const [AutofillHints.newPassword],
           ),
         );
+      case SignupStep.terms:
+        return SignupQuestion(
+          title: step.title,
+          subtitle: step.subtitle,
+          error: f.signupError,
+          busy: f.signupBusy,
+          nextEnabled: f.signupAcceptedTerms,
+          onNext: _onNext,
+          input: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: PyreColors.paperDim,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: PyreColors.ink.withValues(alpha: 0.06),
+                  ),
+                ),
+                child: CheckboxListTile(
+                  value: f.signupAcceptedTerms,
+                  onChanged: f.signupBusy
+                      ? null
+                      : (value) {
+                          f.signupAcceptedTerms = value == true;
+                          f.signupError = null;
+                          widget.onChanged();
+                        },
+                  activeColor: PyreColors.ember,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  title: const Text(
+                    'I agree to the Terms, Privacy Policy, and Pyre Social safety rules.',
+                    style: TextStyle(
+                      color: PyreColors.onPaper,
+                      fontWeight: FontWeight.w800,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      PyreExternalLinks.open(
+                        'https://pyre.social/terms',
+                      );
+                    },
+                    child: const Text('Read Terms'),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      PyreExternalLinks.open(
+                        'https://pyre.social/privacy',
+                      );
+                    },
+                    child: const Text('Read Privacy'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
     }
   }
 
@@ -249,6 +325,7 @@ class OnboardingSignupSlideState extends State<OnboardingSignupSlide> {
       autofillHints: autofillHints,
       style: const TextStyle(color: PyreColors.onPaper, fontSize: 18),
       decoration: InputDecoration(
+        labelText: hint,
         hintText: hint,
         hintStyle: const TextStyle(color: PyreColors.hintOnPaper),
         filled: true,

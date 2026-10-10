@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pyrechat_flutter/models/friend.dart';
 import 'package:pyrechat_flutter/models/friend_adds.dart';
+import 'package:pyrechat_flutter/models/user.dart';
 import 'package:pyrechat_flutter/services/pyre_api.dart';
 import 'package:pyrechat_flutter/services/pyre_client.dart';
 import 'package:pyrechat_flutter/theme/pyre_theme.dart';
-import 'package:pyrechat_flutter/widgets/pyre_icon.dart';
-import 'package:pyrechat_flutter/widgets/pyre_night_backdrop.dart';
+import 'package:pyrechat_flutter/widgets/pyre_avatar.dart';
 
 enum _AddFriendsPane { home, sent, hidden, ignored }
 
@@ -40,11 +40,14 @@ class _AddFriendsScreenState extends State<AddFriendsScreen> {
   List<PyreFriend> _hits = [];
   _AddFriendsPane _pane = _AddFriendsPane.home;
   bool _loading = true;
+  bool _loadFailed = false;
+  int _loadEpoch = 0;
   bool _searching = false;
+  bool _searchFailed = false;
   String? _busyId;
   bool _showAllIncoming = false;
-  bool _showAllSuggestions = false;
   Timer? _debounce;
+  int _searchEpoch = 0;
 
   @override
   void initState() {
@@ -62,41 +65,92 @@ class _AddFriendsScreenState extends State<AddFriendsScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    final epoch = ++_loadEpoch;
+    setState(() {
+      _loading = true;
+      _loadFailed = false;
+    });
     try {
       final bundle = await _client.friendAdds();
-      if (!mounted) return;
+      if (!mounted || epoch != _loadEpoch) return;
       setState(() {
         _bundle = bundle;
         _loading = false;
+        _loadFailed = false;
       });
     } catch (_) {
-      if (!mounted) return;
-      setState(() => _loading = false);
+      if (!mounted || epoch != _loadEpoch) return;
+      setState(() {
+        _loading = false;
+        _loadFailed = true;
+      });
     }
   }
 
   void _onSearchChanged() {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 250), () async {
-      final q = _searchCtrl.text.trim();
-      if (q.isEmpty) {
-        if (mounted) setState(() => _hits = []);
+    final query = _searchCtrl.text.trim();
+    final epoch = ++_searchEpoch;
+
+    if (query.isEmpty) {
+      setState(() {
+        _hits = [];
+        _searching = false;
+        _searchFailed = false;
+      });
+      return;
+    }
+
+    // Invalidate visible results immediately, not after the debounce.
+    setState(() {
+      _hits = [];
+      _searching = true;
+      _searchFailed = false;
+    });
+    _debounce = Timer(
+      const Duration(milliseconds: 250),
+      () => _fetchSearch(query, epoch),
+    );
+  }
+
+  Future<void> _fetchSearch(String query, int epoch) async {
+    try {
+      final hits = await _client.searchUsers(query);
+      if (!mounted ||
+          epoch != _searchEpoch ||
+          _searchCtrl.text.trim() != query) {
         return;
       }
-      setState(() => _searching = true);
-      try {
-        final hits = await _client.searchUsers(q);
-        if (!mounted) return;
-        setState(() {
-          _hits = hits;
-          _searching = false;
-        });
-      } catch (_) {
-        if (!mounted) return;
-        setState(() => _searching = false);
+      setState(() {
+        _hits = hits;
+        _searching = false;
+        _searchFailed = false;
+      });
+    } catch (_) {
+      if (!mounted ||
+          epoch != _searchEpoch ||
+          _searchCtrl.text.trim() != query) {
+        return;
       }
+      setState(() {
+        _hits = [];
+        _searching = false;
+        _searchFailed = true;
+      });
+    }
+  }
+
+  void _retrySearch() {
+    final query = _searchCtrl.text.trim();
+    if (query.isEmpty || _searching) return;
+    _debounce?.cancel();
+    final epoch = ++_searchEpoch;
+    setState(() {
+      _hits = [];
+      _searching = true;
+      _searchFailed = false;
     });
+    _fetchSearch(query, epoch);
   }
 
   Future<void> _run(String id, Future<void> Function() action) async {
@@ -104,12 +158,20 @@ class _AddFriendsScreenState extends State<AddFriendsScreen> {
     setState(() => _busyId = id);
     try {
       await action();
+      if (!mounted) return;
       await _load();
-      final q = _searchCtrl.text.trim();
-      if (q.isNotEmpty) {
-        _hits = await _client.searchUsers(q);
+      if (!mounted) return;
+      final query = _searchCtrl.text.trim();
+      if (query.isNotEmpty) {
+        // A post-action refresh must not overwrite a newer typed search.
+        _debounce?.cancel();
+        final epoch = ++_searchEpoch;
+        setState(() {
+          _searching = true;
+          _searchFailed = false;
+        });
+        await _fetchSearch(query, epoch);
       }
-      if (mounted) setState(() {});
     } on PyreApiException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
@@ -135,12 +197,20 @@ class _AddFriendsScreenState extends State<AddFriendsScreen> {
     });
   }
 
-  void _inviteFriends() {
-    const text = 'Join me on PyreChat — https://chat.pyrearms.dev';
-    Clipboard.setData(const ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Invite link copied')),
-    );
+  Future<void> _inviteFriends() async {
+    const text = 'Join me on Pyre Social — https://pyre.social';
+    try {
+      await Clipboard.setData(const ClipboardData(text: text));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invite link copied')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not copy invite link. Try again.')),
+      );
+    }
   }
 
   void _openMenu() {
@@ -238,17 +308,17 @@ class _AddFriendsScreenState extends State<AddFriendsScreen> {
 
     return Scaffold(
       backgroundColor: PyreColors.night,
-      body: PyreNightBackdrop(
-        mood: PyreSurfaceMood.addFriends,
-        showEmbers: false,
+      body: ColoredBox(
+        color: PyreColors.night,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
           Padding(
-            padding: EdgeInsets.fromLTRB(4, top + 4, 4, 0),
+            padding: EdgeInsets.fromLTRB(8, top + 8, 8, 2),
             child: Row(
               children: [
                 IconButton(
+                  tooltip: _pane == _AddFriendsPane.home ? 'Close' : 'Back',
                   onPressed: () {
                     if (_pane == _AddFriendsPane.home) {
                       Navigator.of(context).pop();
@@ -258,27 +328,33 @@ class _AddFriendsScreenState extends State<AddFriendsScreen> {
                   },
                   icon: Icon(
                     _pane == _AddFriendsPane.home
-                        ? Icons.keyboard_arrow_down_rounded
+                        ? Icons.close_rounded
                         : Icons.arrow_back_rounded,
-                    size: 28,
+                    size: 24,
                   ),
                   style: IconButton.styleFrom(foregroundColor: PyreColors.nightText),
                 ),
+                const SizedBox(width: 4),
                 Expanded(
                   child: Text(
                     _title,
-                    textAlign: TextAlign.center,
+                    textAlign: TextAlign.left,
                     style: const TextStyle(
                       color: PyreColors.nightText,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.3,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.55,
                     ),
                   ),
                 ),
                 IconButton(
+                  tooltip: 'Friend request options',
                   onPressed: _openMenu,
-                  icon: const PyreIcon(asset: PyreIcons.more, size: 22),
+                  icon: const Icon(
+                    Icons.more_horiz_rounded,
+                    color: PyreColors.nightText,
+                    size: 23,
+                  ),
                   style: IconButton.styleFrom(foregroundColor: PyreColors.nightText),
                 ),
               ],
@@ -293,7 +369,7 @@ class _AddFriendsScreenState extends State<AddFriendsScreen> {
                 fontWeight: FontWeight.w600,
               ),
               decoration: InputDecoration(
-                hintText: 'Search people',
+                hintText: 'Search username',
                 hintStyle: const TextStyle(
                   color: PyreColors.nightMuted,
                   fontWeight: FontWeight.w600,
@@ -302,17 +378,31 @@ class _AddFriendsScreenState extends State<AddFriendsScreen> {
                   Icons.search,
                   color: PyreColors.nightMuted,
                 ),
-                suffixIcon: const Padding(
-                  padding: EdgeInsets.only(right: 10),
-                  child: PyreIcon(asset: PyreIcons.flame, size: 20),
-                ),
-                suffixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                suffixIcon: query.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Clear search',
+                        icon: const Icon(Icons.close_rounded),
+                        color: PyreColors.nightMuted,
+                        onPressed: _searchCtrl.clear,
+                      ),
+                suffixIconConstraints: const BoxConstraints(minWidth: 42, minHeight: 42),
                 filled: true,
-                fillColor: PyreColors.nightCardStrong,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                fillColor: Colors.white.withValues(alpha: 0.045),
+                contentPadding: const EdgeInsets.symmetric(vertical: 13),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(999),
-                  borderSide: BorderSide.none,
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(
+                    color: PyreColors.emberGlow.withValues(alpha: 0.55),
+                  ),
                 ),
               ),
               textInputAction: TextInputAction.search,
@@ -324,8 +414,8 @@ class _AddFriendsScreenState extends State<AddFriendsScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
               child: Material(
-                color: PyreColors.nightCardStrong,
-                borderRadius: BorderRadius.circular(22),
+                color: Colors.white.withValues(alpha: 0.035),
+                borderRadius: BorderRadius.circular(16),
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   onTap: _inviteFriends,
@@ -334,7 +424,11 @@ class _AddFriendsScreenState extends State<AddFriendsScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const PyreIcon(asset: PyreIcons.mail, size: 20),
+                        const Icon(
+                          Icons.mail_outline_rounded,
+                          size: 20,
+                          color: PyreColors.nightText,
+                        ),
                         const SizedBox(width: 8),
                         const Flexible(
                           child: Text(
@@ -362,20 +456,105 @@ class _AddFriendsScreenState extends State<AddFriendsScreen> {
   }
 
   Widget _body({required bool searching}) {
-    if (_loading || _searching) {
-      return const Center(
-        child: CircularProgressIndicator(color: PyreColors.emberGlow),
+    if (_searching || (!searching && _loading)) {
+      return Center(
+        child: Semantics(
+          liveRegion: true,
+          label: _searching ? 'Searching usernames' : 'Loading friend requests',
+          child: const ExcludeSemantics(
+            child: CircularProgressIndicator(color: PyreColors.emberGlow),
+          ),
+        ),
+      );
+    }
+
+    if (!searching && _loadFailed) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.cloud_off_rounded,
+                  color: PyreColors.nightMuted, size: 28),
+              const SizedBox(height: 12),
+              const Text(
+                'Could not load friends',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: PyreColors.nightText,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Check your connection and try again.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: PyreColors.nightMuted),
+              ),
+              const SizedBox(height: 12),
+              TextButton.icon(
+                onPressed: _load,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Retry loading friends'),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
     if (searching) {
+      if (_searchFailed) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.wifi_off_rounded,
+                    color: PyreColors.nightMuted, size: 28),
+                const SizedBox(height: 12),
+                Semantics(
+                  liveRegion: true,
+                  child: const Text(
+                    'Search unavailable',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: PyreColors.nightText,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Check your connection and try again.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: PyreColors.nightMuted),
+                ),
+                const SizedBox(height: 12),
+                TextButton.icon(
+                  onPressed: _retrySearch,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Try again'),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
       if (_hits.isEmpty) {
         return Center(
-          child: Text(
-            'No people match “${_searchCtrl.text.trim()}”.',
-            style: TextStyle(
-              color: PyreColors.nightMuted,
-              fontWeight: FontWeight.w600,
+          child: Semantics(
+            liveRegion: true,
+            child: Text(
+              'No people match “${_searchCtrl.text.trim()}”.',
+              style: const TextStyle(
+                color: PyreColors.nightMuted,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         );
@@ -433,10 +612,6 @@ class _AddFriendsScreenState extends State<AddFriendsScreen> {
     final incoming = _showAllIncoming
         ? _bundle.incoming
         : _bundle.incoming.take(_homePreview).toList();
-    final suggestions = _showAllSuggestions
-        ? _bundle.suggestions
-        : _bundle.suggestions.take(_homePreview).toList();
-
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
       children: [
@@ -460,30 +635,20 @@ class _AddFriendsScreenState extends State<AddFriendsScreen> {
               onTap: () => setState(() => _showAllIncoming = true),
             ),
         ],
-        const SizedBox(height: 8),
-        _SectionHeader(
-          title: 'Find Friends',
-          actionLabel: _bundle.suggestions.isNotEmpty ? 'Refresh' : null,
-          onAction: _load,
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 26, 16, 8),
+          child: Center(
+            child: Text(
+              'Search by username',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: PyreColors.nightMuted,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ),
-        if (_bundle.suggestions.isEmpty)
-          _EmptyLine('Nobody new right now.')
-        else ...[
-          for (final f in suggestions)
-            _PersonRow(
-              friend: f,
-              subtitle: 'On PyreChat',
-              busy: _busyId == f.id,
-              primaryLabel: 'Add',
-              onPrimary: () => _add(f),
-              onDismiss: () => _run(f.id, () => _client.dismissFriend(userId: f.id, kind: 'hidden')),
-            ),
-          if (_bundle.suggestions.length > _homePreview && !_showAllSuggestions)
-            _MoreButton(
-              label: 'View ${_bundle.suggestions.length - _homePreview} more',
-              onTap: () => setState(() => _showAllSuggestions = true),
-            ),
-        ],
       ],
     );
   }
@@ -538,15 +703,9 @@ class _AddFriendsScreenState extends State<AddFriendsScreen> {
 }
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
-    required this.title,
-    this.actionLabel,
-    this.onAction,
-  });
+  const _SectionHeader({required this.title});
 
   final String title;
-  final String? actionLabel;
-  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -566,24 +725,6 @@ class _SectionHeader extends StatelessWidget {
               ),
             ),
           ),
-          if (actionLabel != null && onAction != null) ...[
-            const SizedBox(width: 12),
-            Flexible(
-              child: GestureDetector(
-                onTap: onAction,
-                child: Text(
-                  actionLabel!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: PyreColors.emberGlow,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -748,6 +889,9 @@ class _PersonRow extends StatelessWidget {
               if (onDismiss != null)
                 IconButton(
                   onPressed: busy ? null : onDismiss,
+                  tooltip: primaryLabel == 'Requested'
+                      ? 'Cancel friend request to ${friend.displayName}'
+                      : 'Ignore friend request from ${friend.displayName}',
                   icon: const Icon(Icons.close_rounded, size: 20),
                   style: IconButton.styleFrom(
                     foregroundColor: PyreColors.nightText.withValues(alpha: 0.55),
@@ -780,6 +924,19 @@ class _FriendAvatar extends StatelessWidget {
         ? friend.displayName[0].toUpperCase()
         : '?';
     final hue = (friend.username.hashCode % 360).toDouble().abs();
+
+    if (friend.avatarUrl != null && friend.avatarUrl!.isNotEmpty) {
+      return PyreAvatar(
+        user: PyreUser(
+          id: friend.id,
+          username: friend.username,
+          displayName: friend.displayName,
+          avatarUrl: friend.avatarUrl,
+        ),
+        size: 56,
+        showRing: true,
+      );
+    }
 
     return CircleAvatar(
       radius: 28,

@@ -1,7 +1,7 @@
 name: pyrechat_flutter
-description: "PyreChat client."
+description: "Pyre Social client."
 publish_to: 'none'
-version: 1.0.0+2
+version: 1.0.11+13
 
 environment:
   sdk: ^3.9.0
@@ -15,16 +15,21 @@ dependencies:
   camera: ^0.11.2
   permission_handler: ^12.0.1
   image: ^4.5.4
+  image_picker: ^1.1.2
+  path_provider: ^2.1.5
+  flutter_native_splash: ^2.4.4
   google_mlkit_face_mesh_detection: ^0.4.1
   google_mlkit_commons: ^0.11.1
   web_socket_channel: ^3.0.2
+  openmls: ^3.2.0
+  cryptography: ^2.9.0
+  flutter_secure_storage: ^11.2.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
   flutter_launcher_icons: ^0.14.3
-  flutter_native_splash: ^2.4.4
 
 flutter_launcher_icons:
   android: true

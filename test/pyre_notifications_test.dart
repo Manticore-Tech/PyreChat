@@ -19,6 +19,18 @@ class _FakeNotificationBackend implements PyreNotificationBackend {
   }
 
   @override
+  Future<String?> pushToken() async => null;
+
+  @override
+  Future<String?> takeLaunchConversationId() async => null;
+
+  @override
+  Future<void> setContext({
+    required bool foreground,
+    String? activeConversationId,
+  }) async {}
+
+  @override
   Future<bool> show({
     required String title,
     required String body,

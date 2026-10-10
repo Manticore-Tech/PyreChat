@@ -10,6 +10,8 @@ class ChatPreview {
     this.avatarKind = ChatAvatarKind.person,
     this.avatarInitials,
     this.avatarHue,
+    this.avatarUserId,
+    this.avatarUrl,
     this.lastKind = 'text',
     this.lastSenderId,
     this.lastOpenedAt,
@@ -25,11 +27,16 @@ class ChatPreview {
   final ChatAvatarKind avatarKind;
   final String? avatarInitials;
   final double? avatarHue;
+  final String? avatarUserId;
+  final String? avatarUrl;
   final String lastKind;
   final String? lastSenderId;
   final String? lastOpenedAt;
   final bool muted;
   final List<String> memberIds;
+
+  /// Missing peer avatar metadata must not remove a direct chat's MLS requirement.
+  bool get requiresPrivateText => avatarKind == ChatAvatarKind.person;
 
   bool lastFromMe(String meId) => lastSenderId != null && lastSenderId == meId;
 
@@ -48,6 +55,52 @@ class ChatPreview {
     if (displayName?.trim().isNotEmpty == true) return displayName!.trim();
     if (username?.trim().isNotEmpty == true) return username!.trim();
     return 'Chat';
+  }
+
+  Map<String, dynamic> toCacheJson() => {
+        'id': id,
+        'title': title,
+        'preview': preview,
+        'timeLabel': timeLabel,
+        'unread': unread,
+        'avatarKind': avatarKind.name,
+        if (avatarInitials != null) 'avatarInitials': avatarInitials,
+        if (avatarHue != null) 'avatarHue': avatarHue,
+        if (avatarUserId != null) 'avatarUserId': avatarUserId,
+        if (avatarUrl != null) 'avatarUrl': avatarUrl,
+        'lastKind': lastKind,
+        if (lastSenderId != null) 'lastSenderId': lastSenderId,
+        if (lastOpenedAt != null) 'lastOpenedAt': lastOpenedAt,
+        'muted': muted,
+        'memberIds': memberIds,
+      };
+
+  factory ChatPreview.fromCacheJson(Map<String, dynamic> json) {
+    final avatarKindName = json['avatarKind']?.toString();
+    final avatarKind = ChatAvatarKind.values.firstWhere(
+      (value) => value.name == avatarKindName,
+      orElse: () => ChatAvatarKind.person,
+    );
+    return ChatPreview(
+      id: json['id']?.toString() ?? '',
+      title: json['title']?.toString() ?? 'Chat',
+      preview: json['preview']?.toString() ?? '',
+      timeLabel: json['timeLabel']?.toString() ?? '',
+      unread: (json['unread'] as num?)?.toInt() ?? 0,
+      avatarKind: avatarKind,
+      avatarInitials: json['avatarInitials']?.toString(),
+      avatarHue: (json['avatarHue'] as num?)?.toDouble(),
+      avatarUserId: json['avatarUserId']?.toString(),
+      avatarUrl: json['avatarUrl']?.toString(),
+      lastKind: json['lastKind']?.toString() ?? 'text',
+      lastSenderId: json['lastSenderId']?.toString(),
+      lastOpenedAt: json['lastOpenedAt']?.toString(),
+      muted: json['muted'] == true,
+      memberIds: (json['memberIds'] as List<dynamic>? ?? const [])
+          .map((value) => value.toString())
+          .where((value) => value.isNotEmpty)
+          .toList(growable: false),
+    );
   }
 
   factory ChatPreview.fromApi(
@@ -70,13 +123,21 @@ class ChatPreview {
         ? members
         : members.where((member) => _memberId(member) != meId).toList(growable: false);
 
+    final primaryMember = visibleMembers.isNotEmpty
+        ? visibleMembers.first
+        : (members.isNotEmpty ? members.first : null);
     final title = isGroup
         ? ((json['name'] as String?)?.trim().isNotEmpty == true
             ? (json['name'] as String).trim()
             : 'Group')
-        : (visibleMembers.isNotEmpty
-            ? _memberLabel(visibleMembers.first)
-            : (members.isNotEmpty ? _memberLabel(members.first) : 'Chat'));
+        : (primaryMember == null ? 'Chat' : _memberLabel(primaryMember));
+    final avatarUrl = isGroup || primaryMember == null
+        ? null
+        : (primaryMember['avatarUrl'] ?? primaryMember['avatar_url'])
+            ?.toString()
+            .trim();
+    final avatarUserId =
+        isGroup || primaryMember == null ? null : _memberId(primaryMember);
     final initials = title.isNotEmpty ? title[0] : '?';
     final hue = (title.hashCode % 360).toDouble().abs();
 
@@ -134,6 +195,8 @@ class ChatPreview {
       avatarKind: isGroup ? ChatAvatarKind.group : ChatAvatarKind.person,
       avatarInitials: isGroup ? null : initials,
       avatarHue: isGroup ? null : hue,
+      avatarUserId: avatarUserId,
+      avatarUrl: avatarUrl?.isNotEmpty == true ? avatarUrl : null,
       lastKind: lastKind,
       lastSenderId: lastSenderId,
       lastOpenedAt: lastOpenedAt,

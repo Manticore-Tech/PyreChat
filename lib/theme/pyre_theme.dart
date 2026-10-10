@@ -5,13 +5,14 @@ import 'package:pyrechat_flutter/theme/pyre_colors.dart';
 
 export 'pyre_colors.dart';
 
-ThemeData pyreTheme() {
+ThemeData pyreTheme({Color? accentColor}) {
+  final accent = accentColor ?? PyreColors.ember;
   final scheme = ColorScheme.fromSeed(
-    seedColor: PyreColors.ember,
+    seedColor: accent,
     brightness: Brightness.light,
     surface: PyreColors.paper,
   ).copyWith(
-    primary: PyreColors.ember,
+    primary: accent,
     onPrimary: PyreColors.paper,
     secondary: PyreColors.emberSoft,
     onSecondary: PyreColors.ink,
@@ -72,7 +73,7 @@ ThemeData pyreTheme() {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(18),
-        borderSide: const BorderSide(color: PyreColors.ember, width: 1.6),
+        borderSide: BorderSide(color: accent, width: 1.6),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
     ),

@@ -32,3 +32,9 @@ Runner/GeneratedPluginRegistrant.*
 !default.mode2v3
 !default.pbxuser
 !default.perspectivev3
+
+# Local Snap Camera Kit credentials. Never commit the real file.
+CameraKit.xcconfig
+
+# Local Firebase iOS configuration. Never commit the real file.
+Runner/GoogleService-Info.plist

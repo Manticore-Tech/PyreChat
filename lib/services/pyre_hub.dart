@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:pyrechat_flutter/services/pyre_api.dart';
 import 'package:pyrechat_flutter/services/session_store.dart';
 import 'package:web_socket_channel/io.dart';
@@ -36,6 +37,7 @@ class PyreHub {
   bool _connecting = false;
   bool _connected = false;
   int _reconnectAttempt = 0;
+  int _transportGeneration = 0;
   PyreHubStatus _status = PyreHubStatus.disconnected;
 
   PyreHubStatus get status => _status;
@@ -52,6 +54,27 @@ class PyreHub {
 
   void removeStatusListener(HubStatusHandler handler) =>
       _statusHandlers.remove(handler);
+
+  bool sendTyping({
+    required String conversationId,
+    required bool active,
+  }) {
+    final channel = _channel;
+    final id = conversationId.trim();
+    if (!_connected || channel == null || id.isEmpty) return false;
+    try {
+      channel.sink.add(
+        jsonEncode({
+          'type': 'typing',
+          'conversationId': id,
+          'active': active,
+        }),
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 
   void _setStatus(PyreHubStatus value) {
     if (_status == value) return;
@@ -91,7 +114,8 @@ class PyreHub {
 
     try {
       final token = await _session.token;
-      if (_intentionalDisconnect || token == null || token.isEmpty) {
+      if (_intentionalDisconnect ||
+          (!kIsWeb && (token == null || token.isEmpty))) {
         _setStatus(PyreHubStatus.disconnected);
         return;
       }
@@ -99,29 +123,52 @@ class PyreHub {
       final uri = Uri.parse(
         '${_api.origin.replaceFirst('https:', 'wss:').replaceFirst('http:', 'ws:')}/api/ws/hub',
       );
-      final channel = IOWebSocketChannel.connect(
-        uri,
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final WebSocketChannel channel = kIsWeb
+          ? WebSocketChannel.connect(uri)
+          : IOWebSocketChannel.connect(
+              uri,
+              headers: {'Authorization': 'Bearer ${token!}'},
+            );
+      final generation = _transportGeneration;
       _channel = channel;
       _sub = channel.stream.listen(
-        _handleRawEvent,
-        onDone: _handleTransportLoss,
-        onError: (_) => _handleTransportLoss(),
+        (raw) => _handleRawEvent(raw, generation),
+        onDone: () => _handleTransportLoss(generation),
+        onError: (Object error, StackTrace stackTrace) {
+          if (kDebugMode) {
+            debugPrint(
+              '[PyreHub] websocket error: ${error.runtimeType}: $error',
+            );
+          }
+          _handleTransportLoss(generation);
+        },
       );
 
       await channel.ready.timeout(const Duration(seconds: 10));
-      if (_intentionalDisconnect) {
-        await _closeTransport();
-        _setStatus(PyreHubStatus.disconnected);
+      if (_intentionalDisconnect ||
+          generation != _transportGeneration ||
+          !identical(_channel, channel)) {
+        try {
+          await channel.sink.close();
+        } catch (_) {
+          // A superseded transport may already be closed.
+        }
+        if (_intentionalDisconnect) {
+          _setStatus(PyreHubStatus.disconnected);
+        }
         return;
       }
 
-      _reconnectAttempt = 0;
-      _connected = true;
-      _setStatus(PyreHubStatus.connected);
-      _startPing();
-    } catch (_) {
+      _markTransportHealthy(generation);
+      if (kDebugMode) {
+        debugPrint('[PyreHub] connected');
+      }
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint(
+          '[PyreHub] connect failed: ${error.runtimeType}: $error',
+        );
+      }
       await _closeTransport();
       _scheduleReconnect();
     } finally {
@@ -129,12 +176,17 @@ class PyreHub {
     }
   }
 
-  void _handleRawEvent(dynamic raw) {
+  void _handleRawEvent(dynamic raw, int generation) {
+    if (generation != _transportGeneration) return;
     try {
       if (raw is! String) return;
       final decoded = jsonDecode(raw);
       if (decoded is! Map<String, dynamic>) return;
-      if (decoded['type'] == 'pong') _reconnectAttempt = 0;
+
+      // Receiving a valid frame proves this transport is alive even if
+      // channel.ready or an older transport callback races with it.
+      _markTransportHealthy(generation);
+
       for (final handler in List<HubEventHandler>.from(_handlers)) {
         handler(decoded);
       }
@@ -143,20 +195,32 @@ class PyreHub {
     }
   }
 
-  void _startPing() {
+  void _markTransportHealthy(int generation) {
+    if (_intentionalDisconnect || generation != _transportGeneration) return;
+    _reconnect?.cancel();
+    _reconnect = null;
+    _reconnectAttempt = 0;
+    _connected = true;
+    _setStatus(PyreHubStatus.connected);
+    _startPing(generation);
+  }
+
+  void _startPing(int generation) {
     _ping?.cancel();
     _ping = Timer.periodic(const Duration(seconds: 25), (_) {
+      if (generation != _transportGeneration) return;
       final channel = _channel;
       if (channel == null || _intentionalDisconnect) return;
       try {
         channel.sink.add(jsonEncode({'type': 'ping'}));
       } catch (_) {
-        _handleTransportLoss();
+        _handleTransportLoss(generation);
       }
     });
   }
 
-  void _handleTransportLoss() {
+  void _handleTransportLoss(int generation) {
+    if (generation != _transportGeneration) return;
     _ping?.cancel();
     _ping = null;
     _connected = false;
@@ -179,17 +243,23 @@ class PyreHub {
   }
 
   Future<void> _closeTransport() async {
+    // Invalidate callbacks from the transport being closed before awaiting any
+    // cancellation/close work. Late onDone/onError callbacks must not be able
+    // to downgrade a newer healthy connection to "reconnecting".
+    _transportGeneration++;
     _ping?.cancel();
     _ping = null;
     _connected = false;
-    await _sub?.cancel();
+    final sub = _sub;
+    final channel = _channel;
     _sub = null;
+    _channel = null;
+    await sub?.cancel();
     try {
-      await _channel?.sink.close();
+      await channel?.sink.close();
     } catch (_) {
       // Transport is already gone.
     }
-    _channel = null;
   }
 
   Future<void> disconnect() async {

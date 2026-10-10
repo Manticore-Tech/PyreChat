@@ -5,7 +5,7 @@
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
-		<string>PyreChat</string>
+		<string>Pyre Social</string>
 		<key>CFBundleExecutable</key>
 		<string>$(EXECUTABLE_NAME)</string>
 		<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 		<key>CFBundleInfoDictionaryVersion</key>
 		<string>6.0</string>
 		<key>CFBundleName</key>
-		<string>PyreChat</string>
+		<string>Pyre Social</string>
 		<key>CFBundlePackageType</key>
 		<string>APPL</string>
 		<key>CFBundleShortVersionString</key>
@@ -48,8 +48,18 @@
 		<key>UIStatusBarHidden</key>
 		<false/>
 		<key>NSCameraUsageDescription</key>
-		<string>PyreChat needs the camera to capture snaps and videos.</string>
+		<string>Pyre Social needs the camera to capture snaps and videos.</string>
 		<key>NSMicrophoneUsageDescription</key>
-		<string>PyreChat needs the microphone when you record video.</string>
+		<string>Pyre Social needs the microphone when you record video.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Choose a profile photo, custom Pyre Social background, or media for supported Camera Kit Lenses.</string>
+		<key>NSPhotoLibraryAddUsageDescription</key>
+		<string>Save media captured with supported Camera Kit Lenses when you choose to do so.</string>
+		<key>PyreCameraKitInternalEval</key>
+		<string>$(CAMERA_KIT_INTERNAL_EVAL)</string>
+		<key>PyreCameraKitAPIToken</key>
+		<string>$(CAMERA_KIT_API_TOKEN)</string>
+		<key>PyreCameraKitLensGroupIDs</key>
+		<string>$(CAMERA_KIT_LENS_GROUP_IDS)</string>
 	</dict>
 </plist>

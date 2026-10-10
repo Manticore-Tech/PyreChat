@@ -93,7 +93,10 @@ final normalizedBirthday = normalizeBirthdayInput(_forms.birthday);
 final validationError = validateDisplayName(_forms.displayName) ??
 validateUsername(_forms.signupUsername) ??
 validatePyreBirthday(_forms.birthday) ??
-validateSignupPassword(_forms.signupPassword);
+validateSignupPassword(_forms.signupPassword) ??
+(_forms.signupAcceptedTerms
+    ? null
+    : 'Accept the Terms and Privacy Policy to create an account.');
 if (validationError != null) {
 setState(() => _forms.signupError = validationError);
 return;
@@ -109,6 +112,8 @@ username: _forms.signupUsername.trim(),
 password: _forms.signupPassword,
 displayName: _forms.displayName.trim(),
 birthday: normalizedBirthday!,
+acceptedTerms: _forms.signupAcceptedTerms,
+termsVersion: '2026-09-29',
 );
 await _session.save(token: result.token, user: result.user);
 if (!mounted) return;
@@ -192,15 +197,20 @@ username: _forms.username,
 password: _forms.password,
 busy: _forms.loginBusy,
 error: _forms.loginError,
-onUsernameChanged: (v) => setState(() {
+onUsernameChanged: (v) {
 _forms.username = v;
-_forms.loginError = null;
-}),
-onPasswordChanged: (v) => setState(() {
+if (_forms.loginError != null) {
+setState(() => _forms.loginError = null);
+}
+},
+onPasswordChanged: (v) {
 _forms.password = v;
-_forms.loginError = null;
-}),
+if (_forms.loginError != null) {
+setState(() => _forms.loginError = null);
+}
+},
 onSubmit: _submitLogin,
+onBack: () => _goTo(_choice),
 ),
 OnboardingSignupSlide(
 key: _signupKey,

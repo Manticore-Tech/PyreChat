@@ -36,4 +36,24 @@ void main() {
       isEmpty,
     );
   });
+
+  testWidgets('signup fields keep persistent labels after typing', (tester) async {
+    final forms = AuthFormState();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: OnboardingSignupSlide(
+            forms: forms,
+            onChanged: () {},
+            onSubmit: () {},
+          ),
+        ),
+      ),
+    );
+
+    final field = tester.widget<TextField>(find.byType(TextField).first);
+    expect(field.decoration?.labelText, 'Your name');
+    expect(field.decoration?.hintText, 'Your name');
+  });
 }

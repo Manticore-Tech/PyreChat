@@ -48,6 +48,8 @@ app.*.map.json
 # Local machine settings, signing credentials, and generated QA outputs
 /android/local.properties
 /android/key.properties
+/android/camerakit.properties
+/android/app/google-services.json
 *.jks
 *.keystore
 *.p12

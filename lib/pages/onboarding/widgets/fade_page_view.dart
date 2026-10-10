@@ -28,6 +28,7 @@ class _FadePageViewState extends State<FadePageView>
 
   int _current = 0;
   int? _outgoing;
+  int _transitionId = 0;
 
   @override
   void initState() {
@@ -55,6 +56,7 @@ class _FadePageViewState extends State<FadePageView>
     if (index == _current || index < 0 || index >= widget.children.length) {
       return;
     }
+    final transitionId = ++_transitionId;
     if (reduceMotionOf(context)) {
       setState(() {
         _outgoing = null;
@@ -68,7 +70,7 @@ class _FadePageViewState extends State<FadePageView>
     setState(() => _current = index);
 
     await _fade.forward();
-    if (!mounted) return;
+    if (!mounted || transitionId != _transitionId) return;
     setState(() => _outgoing = null);
     _fade.value = 0;
   }
@@ -94,16 +96,27 @@ class _FadePageViewState extends State<FadePageView>
         return Stack(
           fit: StackFit.expand,
           children: [
+            // Only mount the current and outgoing pages. Previously every
+            // hidden page ran its animations, including the intro which could
+            // navigate away from the focused login form after three seconds.
             for (var i = 0; i < widget.children.length; i++)
-              Positioned.fill(
-                child: IgnorePointer(
-                  ignoring: i != _current,
-                  child: Opacity(
-                    opacity: _opacityFor(i).clamp(0.0, 1.0),
-                    child: widget.children[i],
+              if (i == _current || i == _outgoing)
+                Positioned.fill(
+                  key: ValueKey<int>(i),
+                  child: IgnorePointer(
+                    ignoring: i != _current,
+                    child: ExcludeFocus(
+                      excluding: i != _current,
+                      child: ExcludeSemantics(
+                        excluding: i != _current,
+                        child: Opacity(
+                          opacity: _opacityFor(i).clamp(0.0, 1.0),
+                          child: widget.children[i],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
           ],
         );
       },

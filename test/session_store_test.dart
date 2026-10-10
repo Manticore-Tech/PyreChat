@@ -57,6 +57,7 @@ void main() {
 
     final store = SessionStore(
       secureTokenStore: _FakeSecureTokenStore(supported: false),
+      requireSecurePersistence: false,
     );
     expect(await store.user, isNull);
 
@@ -70,7 +71,10 @@ void main() {
       'pyre_token': 'legacy-token',
     });
     final secure = _FakeSecureTokenStore();
-    final store = SessionStore(secureTokenStore: secure);
+    final store = SessionStore(
+      secureTokenStore: secure,
+      requireSecurePersistence: true,
+    );
 
     expect(await store.token, 'legacy-token');
     expect(secure.token, 'legacy-token');
@@ -85,7 +89,10 @@ void main() {
       'pyre_token': 'old-plaintext-token',
     });
     final secure = _FakeSecureTokenStore(token: 'secure-token');
-    final store = SessionStore(secureTokenStore: secure);
+    final store = SessionStore(
+      secureTokenStore: secure,
+      requireSecurePersistence: true,
+    );
 
     expect(await store.token, 'secure-token');
     expect(secure.writes, 0);
@@ -97,7 +104,10 @@ void main() {
   test('save keeps bearer token out of SharedPreferences when secure storage works',
       () async {
     final secure = _FakeSecureTokenStore();
-    final store = SessionStore(secureTokenStore: secure);
+    final store = SessionStore(
+      secureTokenStore: secure,
+      requireSecurePersistence: true,
+    );
 
     await store.save(token: 'new-token', user: user);
 
@@ -107,24 +117,85 @@ void main() {
     expect(prefs.getString('pyre_user'), isNotNull);
   });
 
-  test('save falls back without losing session when secure write fails', () async {
+  test('production mobile save fails closed when secure write fails', () async {
     final secure = _FakeSecureTokenStore(writeSucceeds: false);
-    final store = SessionStore(secureTokenStore: secure);
+    final store = SessionStore(
+      secureTokenStore: secure,
+      requireSecurePersistence: true,
+    );
 
-    await store.save(token: 'fallback-token', user: user);
+    await expectLater(
+      store.save(token: 'fallback-token', user: user),
+      throwsA(isA<SessionPersistenceException>()),
+    );
 
     expect(secure.token, isNull);
     final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getString('pyre_token'), 'fallback-token');
+    expect(prefs.getString('pyre_token'), isNull);
+    expect(prefs.getString('pyre_user'), isNull);
+  });
+
+  test('production mobile removes plaintext token when secure storage is unsupported',
+      () async {
+    SharedPreferences.setMockInitialValues({
+      'pyre_token': 'legacy-token',
+    });
+    final store = SessionStore(
+      secureTokenStore: _FakeSecureTokenStore(supported: false),
+      requireSecurePersistence: true,
+    );
+
+    expect(await store.token, isNull);
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('pyre_token'), isNull);
+  });
+
+  test('production mobile removes plaintext token when migration cannot secure it',
+      () async {
+    SharedPreferences.setMockInitialValues({
+      'pyre_token': 'legacy-token',
+    });
+    final secure = _FakeSecureTokenStore(writeSucceeds: false);
+    final store = SessionStore(
+      secureTokenStore: secure,
+      requireSecurePersistence: true,
+    );
+
+    expect(await store.token, isNull);
+    expect(secure.writes, 1);
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('pyre_token'), isNull);
+  });
+
+  test('explicit non-mobile development mode may use plaintext fallback', () async {
+    final secure = _FakeSecureTokenStore(
+      supported: false,
+      writeSucceeds: false,
+    );
+    final store = SessionStore(
+      secureTokenStore: secure,
+      requireSecurePersistence: false,
+    );
+
+    await store.save(token: 'dev-token', user: user);
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('pyre_token'), 'dev-token');
   });
 
   test('clear removes secure token and all legacy session state', () async {
     SharedPreferences.setMockInitialValues({
       'pyre_token': 'legacy-token',
-      'pyre_user': '{"id":"user-1","username":"phoenix","displayName":"Phoenix"}',
+      'pyre_user':
+          '{"id":"user-1","username":"phoenix","displayName":"Phoenix"}',
     });
     final secure = _FakeSecureTokenStore(token: 'secure-token');
-    final store = SessionStore(secureTokenStore: secure);
+    final store = SessionStore(
+      secureTokenStore: secure,
+      requireSecurePersistence: true,
+    );
 
     await store.clear();
 

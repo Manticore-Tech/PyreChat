@@ -23,6 +23,8 @@ class CaptureHud extends StatelessWidget {
     required this.onGradeSelected,
     required this.onCapture,
     required this.onFlip,
+    required this.onOpenCameraKit,
+    required this.cameraKitConfigured,
     this.onTapLastShot,
     this.onGoChats,
     this.onGoProfile,
@@ -40,6 +42,8 @@ class CaptureHud extends StatelessWidget {
   final ValueChanged<PyreGradeId> onGradeSelected;
   final VoidCallback onCapture;
   final VoidCallback onFlip;
+  final VoidCallback onOpenCameraKit;
+  final bool cameraKitConfigured;
   final VoidCallback? onTapLastShot;
   final VoidCallback? onGoChats;
   final VoidCallback? onGoProfile;
@@ -77,26 +81,34 @@ class CaptureHud extends StatelessWidget {
                     itemBuilder: (context, i) {
                       final g = PyreGrades.all[i];
                       final on = g.id == grade;
-                      return GestureDetector(
-                        onTap: () {
-                          onGradeSelected(g.id);
-                          Navigator.pop(ctx);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: on ? PyreColors.ember : PyreColors.ink,
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(
-                              color: on ? PyreColors.ember : PyreColors.mute.withValues(alpha: 0.35),
+                      return Semantics(
+                        button: true,
+                        selected: on,
+                        excludeSemantics: true,
+                        label: 'Color filter ${g.label}',
+                        child: GestureDetector(
+                          onTap: () {
+                            onGradeSelected(g.id);
+                            Navigator.pop(ctx);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: on ? PyreColors.ember : PyreColors.ink,
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: on
+                                    ? PyreColors.ember
+                                    : PyreColors.mute.withValues(alpha: 0.35),
+                              ),
                             ),
-                          ),
-                          child: Text(
-                            g.label,
-                            style: TextStyle(
-                              color: on ? PyreColors.paper : PyreColors.mute,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
+                            child: Text(
+                              g.label,
+                              style: TextStyle(
+                                color: on ? PyreColors.paper : PyreColors.mute,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                         ),
@@ -137,23 +149,46 @@ class CaptureHud extends StatelessWidget {
           child: Row(
             children: [
               if (lastShot != null)
-                GestureDetector(
-                  onTap: onTapLastShot,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.memory(lastShot!, width: 44, height: 44, fit: BoxFit.cover),
+                Semantics(
+                  button: true,
+                  label: 'Send last capture',
+                  child: GestureDetector(
+                    onTap: onTapLastShot,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.memory(
+                        lastShot!,
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                   ),
                 )
               else
-                const SizedBox(width: 44),
+                const SizedBox(width: 48),
               const Spacer(),
+              if (cameraKitConfigured) ...[
+                _HudLabelButton(
+                  icon: Icons.auto_awesome_rounded,
+                  label: 'Lenses',
+                  semanticLabel: 'Open Snap Camera Kit lenses',
+                  onTap: onOpenCameraKit,
+                ),
+                const SizedBox(width: 8),
+              ],
               _HudIconButton(
-                icon: 'assets/icons/sliders.png',
+                icon: Icons.tune_rounded,
+                semanticLabel: 'Color filters',
                 onTap: () => _openGradeSheet(context),
                 active: grade != PyreGradeId.none,
               ),
               const SizedBox(width: 8),
-              _HudIconButton(icon: PyreIcons.refresh, onTap: onFlip),
+              _HudIconButton(
+                icon: Icons.cameraswitch_rounded,
+                semanticLabel: 'Switch camera',
+                onTap: onFlip,
+              ),
             ],
           ),
         ),
@@ -310,22 +345,29 @@ class _LensThumbnail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = selected ? 58.0 : 48.0;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: selected ? PyreColors.ember : Colors.white.withValues(alpha: 0.45),
-            width: selected ? 2.5 : 1.5,
+    final label = item.isStudio ? 'Make a lens' : 'Lens ${item.label ?? 'effect'}';
+    return Semantics(
+      button: true,
+      selected: selected,
+      excludeSemantics: true,
+      label: label,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: selected ? PyreColors.ember : Colors.white.withValues(alpha: 0.45),
+              width: selected ? 2.5 : 1.5,
+            ),
+            color: Colors.black.withValues(alpha: 0.35),
           ),
-          color: Colors.black.withValues(alpha: 0.35),
-        ),
-        child: Center(
-          child: _thumbContent(),
+          child: Center(
+            child: _thumbContent(),
+          ),
         ),
       ),
     );
@@ -368,45 +410,110 @@ class _LensThumbnail extends StatelessWidget {
   }
 }
 
+class _HudLabelButton extends StatelessWidget {
+  const _HudLabelButton({
+    required this.icon,
+    required this.label,
+    required this.semanticLabel,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String semanticLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: semanticLabel,
+      child: Semantics(
+        button: true,
+        label: semanticLabel,
+        excludeSemantics: true,
+        child: Material(
+          color: Colors.black.withValues(alpha: 0.42),
+          borderRadius: BorderRadius.circular(999),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(999),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 14),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 20, color: PyreColors.emberGlow),
+                  const SizedBox(width: 7),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _HudIconButton extends StatelessWidget {
   const _HudIconButton({
     required this.icon,
+    required this.semanticLabel,
     required this.onTap,
     this.active = false,
   });
 
-  final String icon;
+  final IconData icon;
+  final String semanticLabel;
   final VoidCallback onTap;
   final bool active;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.black.withValues(alpha: 0.35),
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              PyreIcon(asset: icon, size: 24),
-              if (active)
-                Positioned(
-                  right: -2,
-                  top: -2,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: PyreColors.ember,
-                      shape: BoxShape.circle,
-                    ),
+    return Tooltip(
+      message: semanticLabel,
+      child: Semantics(
+        button: true,
+        label: semanticLabel,
+        child: Material(
+          color: Colors.black.withValues(alpha: 0.35),
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(
+                    icon,
+                    size: 24,
+                    color: active ? PyreColors.emberGlow : Colors.white,
                   ),
-                ),
-            ],
+                  if (active)
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: PyreColors.ember,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

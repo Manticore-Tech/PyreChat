@@ -1,11 +1,11 @@
 {
-    "name": "pyrechat_flutter",
-    "short_name": "pyrechat_flutter",
+    "name": "Pyre Social",
+    "short_name": "Pyre",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#080405",
+    "theme_color": "#080405",
+    "description": "Chats, Pyres, and camera sharing in one independent social app.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

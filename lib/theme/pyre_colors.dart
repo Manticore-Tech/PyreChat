@@ -48,16 +48,16 @@ abstract final class PyreColors {
   static const chatTime = Color(0xFFA18A7B);
 
   // Signed-in night / campfire surfaces.
-  static const night = Color(0xFF08111B);
-  static const nightRaised = Color(0xFF0F1823);
-  static const nightCard = Color(0xE6161A20);
-  static const nightCardStrong = Color(0xF01B1D22);
-  static const nightLine = Color(0xFF2D3238);
-  static const nightText = Color(0xFFF6F2EF);
-  static const nightMuted = Color(0xFFAAA29E);
-  static const emberGlow = Color(0xFFFF9A4F);
-  static const emberHot = Color(0xFFFF5C24);
-  static const emberGold = Color(0xFFFFC66E);
+  static const night = Color(0xFF07090D);
+  static const nightRaised = Color(0xFF0D1117);
+  static const nightCard = Color(0xD90F1319);
+  static const nightCardStrong = Color(0xF0141920);
+  static const nightLine = Color(0xFF242B34);
+  static const nightText = Color(0xFFF7F8FA);
+  static const nightMuted = Color(0xFF98A2AE);
+  static const emberGlow = Color(0xFFFF8A5B);
+  static const emberHot = Color(0xFFFF6B3D);
+  static const emberGold = Color(0xFFF6C978);
   static const online = Color(0xFF55C66E);
   static const away = Color(0xFFF1B444);
   static const busy = Color(0xFFF0634E);

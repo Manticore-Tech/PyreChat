@@ -59,4 +59,23 @@ void main() {
 
     expect(chat.title, 'Friend Two');
   });
+  test('a direct chat without peer metadata still requires private text', () {
+    final direct = ChatPreview.fromApi(
+      {'id': 'direct-missing-member', 'is_group': 0, 'members': <Map<String, dynamic>>[]},
+      meId: 'me',
+    );
+    final group = ChatPreview.fromApi(
+      {'id': 'group-missing-member', 'is_group': 1, 'members': <Map<String, dynamic>>[]},
+      meId: 'me',
+    );
+
+    expect(direct.avatarUserId, isNull);
+    expect(direct.requiresPrivateText, isTrue);
+    expect(group.requiresPrivateText, isFalse);
+    expect(
+      ChatPreview.fromCacheJson(direct.toCacheJson()).requiresPrivateText,
+      isTrue,
+    );
+  });
+
 }

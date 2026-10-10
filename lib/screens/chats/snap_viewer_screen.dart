@@ -1,10 +1,11 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:pyrechat_flutter/models/snap_detail.dart';
 import 'package:pyrechat_flutter/services/pyre_api.dart';
 import 'package:pyrechat_flutter/services/pyre_client.dart';
+import 'package:pyrechat_flutter/services/pyre_video_preview_cache.dart';
 import 'package:pyrechat_flutter/theme/pyre_theme.dart';
+import 'package:pyrechat_flutter/widgets/pyre_video_view.dart';
 
 class SnapViewerScreen extends StatefulWidget {
   const SnapViewerScreen({
@@ -27,6 +28,7 @@ class _SnapViewerScreenState extends State<SnapViewerScreen> {
 
   SnapDetail? _snap;
   Uint8List? _bytes;
+  String? _videoPath;
   bool _loading = true;
   String? _error;
 
@@ -44,10 +46,17 @@ class _SnapViewerScreenState extends State<SnapViewerScreen> {
         await _client.markSnapViewed(widget.snapId);
       }
       final bytes = await _client.fetchSnapMedia(snap);
-      if (!mounted) return;
+      final videoPath = snap.kind == 'video'
+          ? await PyreVideoPreviewCache.cache(bytes)
+          : null;
+      if (!mounted) {
+        await PyreVideoPreviewCache.delete(videoPath);
+        return;
+      }
       setState(() {
         _snap = snap;
         _bytes = bytes;
+        _videoPath = videoPath;
         _loading = false;
       });
     } on PyreApiException catch (e) {
@@ -66,18 +75,76 @@ class _SnapViewerScreenState extends State<SnapViewerScreen> {
   }
 
   @override
+  void dispose() {
+    final videoPath = _videoPath;
+    _videoPath = null;
+    PyreVideoPreviewCache.delete(videoPath);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          if (_bytes != null)
+          if (_bytes != null && _snap?.kind != 'video')
             InteractiveViewer(
               child: Center(
                 child: Image.memory(_bytes!, fit: BoxFit.contain),
               ),
             ),
+          if (_bytes != null && _snap?.kind == 'video')
+            _videoPath != null
+                ? Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      PyreVideoView(
+                        path: _videoPath!,
+                        fallback: const ColoredBox(color: Colors.black),
+                      ),
+                      const IgnorePointer(
+                        child: Align(
+                          alignment: Alignment(0, 0.82),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Color(0x78000000),
+                              borderRadius: BorderRadius.all(
+                                Radius.circular(999),
+                              ),
+                            ),
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 7,
+                              ),
+                              child: Text(
+                                'Tap video to pause or play',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : const ColoredBox(
+                    color: Colors.black,
+                    child: Center(
+                      child: Text(
+                        'Video preview unavailable on this device.',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
           if (_loading)
             const Center(child: CircularProgressIndicator(color: PyreColors.ember)),
           if (_error != null)

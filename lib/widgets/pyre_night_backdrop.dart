@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:pyrechat_flutter/services/appearance_prefs.dart';
 
@@ -91,7 +94,7 @@ class PyreNightBackdrop extends StatelessWidget {
             bottomShade: 0.82,
           ),
         PyreSurfaceMood.myPyre => const _PyreBackdropSpec(
-            asset: 'assets/background_sunset.webp',
+            asset: 'assets/background_night.webp',
             alignment: Alignment(0, -0.36),
             topShade: 0.24,
             midShade: 0.18,
@@ -101,7 +104,7 @@ class PyreNightBackdrop extends StatelessWidget {
             glowAlignment: Alignment(0.10, 0.10),
           ),
         PyreSurfaceMood.friendPyre => const _PyreBackdropSpec(
-            asset: 'assets/background_sunset.webp',
+            asset: 'assets/background_night.webp',
             alignment: Alignment(0.10, -0.30),
             topShade: 0.28,
             midShade: 0.21,
@@ -111,7 +114,7 @@ class PyreNightBackdrop extends StatelessWidget {
             glowAlignment: Alignment(0.26, 0.04),
           ),
         PyreSurfaceMood.profile => const _PyreBackdropSpec(
-            asset: 'assets/background_ember.webp',
+            asset: 'assets/background_night.webp',
             alignment: Alignment(0, -0.48),
             topShade: 0.40,
             midShade: 0.31,
@@ -145,6 +148,9 @@ class PyreNightBackdrop extends StatelessWidget {
           asset: 'assets/background_ember.webp',
           alignment: const Alignment(0, -0.42),
         ),
+      PyreBackgroundMode.custom => spec.copyWith(
+          alignment: Alignment.center,
+        ),
     };
   }
 
@@ -163,18 +169,43 @@ class PyreNightBackdrop extends StatelessWidget {
           return (base + extraShade).clamp(0.0, 0.96).toDouble();
         }
 
+        final showArtwork = appearance.backgroundMode == PyreBackgroundMode.custom ||
+            mood == PyreSurfaceMood.myPyre ||
+            mood == PyreSurfaceMood.friendPyre;
+
         return Stack(
           fit: StackFit.expand,
           children: [
-            const ColoredBox(color: Color(0xFF08090B)),
-            Positioned.fill(
-              child: Image.asset(
-                spec.asset,
-                fit: BoxFit.cover,
-                alignment: spec.alignment,
-                filterQuality: FilterQuality.high,
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF0B0E13),
+                    Color(0xFF080A0E),
+                    Color(0xFF050607),
+                  ],
+                  stops: [0, 0.52, 1],
+                ),
               ),
             ),
+            if (showArtwork)
+              Positioned.fill(
+                child: Opacity(
+                  opacity: appearance.backgroundMode == PyreBackgroundMode.custom
+                      ? visibility
+                      : 0.32 * visibility,
+                  child: _BackdropImage(
+                    asset: spec.asset,
+                    customBytes: appearance.backgroundMode == PyreBackgroundMode.custom
+                        ? appearance.customBackgroundBytes
+                        : null,
+                    alignment: spec.alignment,
+                    blurSigma: appearance.backgroundBlur,
+                  ),
+                ),
+              ),
             if (spec.glowColor != null && spec.glowAlpha > 0)
               Positioned.fill(
                 child: IgnorePointer(
@@ -217,6 +248,54 @@ class PyreNightBackdrop extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+
+class _BackdropImage extends StatelessWidget {
+  const _BackdropImage({
+    required this.asset,
+    required this.customBytes,
+    required this.alignment,
+    required this.blurSigma,
+  });
+
+  final String asset;
+  final Uint8List? customBytes;
+  final Alignment alignment;
+  final double blurSigma;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget image = customBytes != null
+        ? Image.memory(
+            customBytes!,
+            fit: BoxFit.cover,
+            alignment: Alignment.center,
+            filterQuality: FilterQuality.high,
+            gaplessPlayback: true,
+          )
+        : Image.asset(
+            asset,
+            fit: BoxFit.cover,
+            alignment: alignment,
+            filterQuality: FilterQuality.high,
+            gaplessPlayback: true,
+          );
+
+    if (blurSigma <= 0.05) return image;
+
+    image = Transform.scale(
+      scale: 1.035,
+      child: image,
+    );
+    return ImageFiltered(
+      imageFilter: ui.ImageFilter.blur(
+        sigmaX: blurSigma,
+        sigmaY: blurSigma,
+      ),
+      child: image,
     );
   }
 }

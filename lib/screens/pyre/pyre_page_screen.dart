@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pyrechat_flutter/models/user.dart';
 import 'package:pyrechat_flutter/theme/pyre_theme.dart';
-import 'package:pyrechat_flutter/widgets/animated_pyre_fire.dart';
 import 'package:pyrechat_flutter/widgets/pyre_avatar.dart';
 import 'package:pyrechat_flutter/widgets/pyre_glass_surface.dart';
 import 'package:pyrechat_flutter/widgets/pyre_night_backdrop.dart';
@@ -22,7 +21,6 @@ class PyrePageScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.paddingOf(context).top;
-    final seed = user.id.hashCode.abs();
 
     return PyreNightBackdrop(
       mood: PyreSurfaceMood.myPyre,
@@ -45,28 +43,15 @@ class PyrePageScreen extends StatelessWidget {
               const _QuietBadge(),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 28),
           Center(
-            child: Stack(
-              alignment: Alignment.topCenter,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 22),
-                  child: AnimatedPyreFire(
-                    size: 250,
-                    seed: seed,
-                    intensity: 1.04,
-                  ),
-                ),
-                PyreAvatar(
-                  user: user,
-                  size: 68,
-                  showRing: true,
-                ),
-              ],
+            child: PyreAvatar(
+              user: user,
+              size: 86,
+              showRing: true,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 24),
           Text(
             _displayName,
             textAlign: TextAlign.center,

@@ -1,0 +1,27 @@
+{
+  "generated_at": "2026-10-07T06:25:58-04:00",
+  "icon": {
+    "path": "store/google-play/en-US/icon-512.png",
+    "source": "assets/app_icon.png",
+    "width": 512,
+    "height": 512,
+    "channels": 4,
+    "bytes": 165026,
+    "max_bytes": 1048576,
+    "validation": "PASS"
+  },
+  "feature_graphic": {
+    "path": "store/google-play/en-US/feature-graphic-1024x500.png",
+    "sources": [
+      "assets/pyre_flame.png",
+      "Brand & Visual Designer procedural ember/chat composition"
+    ],
+    "width": 1024,
+    "height": 500,
+    "channels": 3,
+    "bytes": 57265,
+    "alpha": false,
+    "validation": "PASS"
+  },
+  "publication": false
+}

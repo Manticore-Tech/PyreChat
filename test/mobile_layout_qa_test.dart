@@ -10,15 +10,19 @@ import 'package:pyrechat_flutter/models/chat_preview.dart';
 import 'package:pyrechat_flutter/models/friend.dart';
 import 'package:pyrechat_flutter/models/friend_adds.dart';
 import 'package:pyrechat_flutter/models/snap_detail.dart';
+import 'package:pyrechat_flutter/models/session.dart';
 import 'package:pyrechat_flutter/models/user.dart';
+import 'package:pyrechat_flutter/pages/onboarding/onboarding_page.dart';
 import 'package:pyrechat_flutter/pages/onboarding/widgets/onboarding_login_slide.dart';
 import 'package:pyrechat_flutter/screens/capture/capture_hud.dart';
 import 'package:pyrechat_flutter/screens/chats/add_friends_screen.dart';
+import 'package:pyrechat_flutter/screens/app_shell_screen.dart';
 import 'package:pyrechat_flutter/screens/chats/chat_thread_screen.dart';
 import 'package:pyrechat_flutter/screens/chats/chats_screen.dart';
 import 'package:pyrechat_flutter/screens/chats/snap_viewer_screen.dart';
 import 'package:pyrechat_flutter/screens/lens/lens_studio_screen.dart';
 import 'package:pyrechat_flutter/screens/profile/profile_screen.dart';
+import 'package:pyrechat_flutter/screens/profile/sessions_screen.dart';
 import 'package:pyrechat_flutter/screens/profile/settings_screen.dart';
 import 'package:pyrechat_flutter/screens/pyre/friend_pyre_screen.dart';
 import 'package:pyrechat_flutter/screens/pyre/pyre_page_screen.dart';
@@ -65,6 +69,35 @@ class _FakeFriendsClient extends PyreClient {
 
   @override
   Future<void> removeFriend(String userId) async {}
+}
+
+class _FakeSessionsClient extends PyreClient {
+  bool revoked = false;
+
+  @override
+  Future<List<PyreSession>> sessions() async => [
+        PyreSession(
+          id: 'current-session',
+          label: 'PyreChat Android',
+          current: true,
+          deviceId: 'device-current-1234567890',
+          createdAt: DateTime.utc(2026, 9, 29, 16, 0),
+          expiresAt: DateTime.utc(2026, 10, 29, 16, 0),
+        ),
+        PyreSession(
+          id: 'other-session',
+          label: 'PyreChat Web',
+          current: false,
+          createdAt: DateTime.utc(2026, 9, 28, 12, 0),
+          expiresAt: DateTime.utc(2026, 10, 28, 12, 0),
+        ),
+      ];
+
+  @override
+  Future<bool> revokeSession(String sessionId) async {
+    revoked = sessionId == 'other-session';
+    return false;
+  }
 }
 
 class _FakeSnapClient extends PyreClient {
@@ -128,8 +161,30 @@ class _FakeThreadClient extends PyreClient {
   Future<String> sendMessage({
     required String chatId,
     required String text,
+    String? clientId,
   }) async {
     return 'server-message-id';
+  }
+}
+
+class _NotificationRaceThreadClient extends PyreClient {
+  int calls = 0;
+
+  @override
+  Future<List<ChatMessage>> messages(String chatId) async {
+    calls++;
+    if (calls == 1) return const [];
+    return const [
+      ChatMessage(
+        id: 'message-from-push',
+        senderId: 'friend-1',
+        kind: 'text',
+        body: 'Fresh notification message',
+        createdAt: '2026-09-29T16:55:00Z',
+        displayName: 'Friend',
+        username: 'friend',
+      ),
+    ];
   }
 }
 
@@ -176,6 +231,40 @@ void _expectNoFlutterError(WidgetTester tester) {
 }
 
 void main() {
+  testWidgets('app shell announces offline connection state accessibly',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    _configurePhone(tester);
+    final semantics = tester.ensureSemantics();
+
+    const user = PyreUser(
+      id: 'shell-user',
+      username: 'shell.user',
+      displayName: 'Shell User',
+    );
+
+    await tester.pumpWidget(
+      _app(
+        Scaffold(
+          body: AppConnectionStatusLabel(
+            key: ValueKey(user.id),
+            status: PyreHubStatus.disconnected,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    for (var i = 0;
+        i < 20 && find.bySemanticsLabel('You are offline').evaluate().isEmpty;
+        i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    expect(find.bySemanticsLabel('You are offline'), findsOneWidget);
+    semantics.dispose();
+    _expectNoFlutterError(tester);
+  });
+
   testWidgets('login layout survives Samsung-sized viewport', (tester) async {
     _configurePhone(tester);
 
@@ -223,6 +312,41 @@ void main() {
 
     expect(find.text('Welcome back'), findsOneWidget);
     expect(find.text('Log in'), findsOneWidget);
+    _expectNoFlutterError(tester);
+  });
+
+  testWidgets(
+      'login stays visible when focusing and typing with the keyboard open',
+      (tester) async {
+    _configurePhone(tester);
+
+    await tester.pumpWidget(
+      _app(
+        OnboardingPage(
+          onAuthenticated: (_) {},
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Log in').hitTestable().first);
+    await tester.pump(const Duration(milliseconds: 1300));
+
+    final username = find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField &&
+          widget.decoration?.labelText == 'Username',
+    ).hitTestable();
+    expect(username, findsOneWidget);
+
+    await tester.tap(username);
+    tester.view.viewInsets = FakeViewPadding(bottom: 330 * 3);
+    await tester.pump();
+    await tester.enterText(username, 'max');
+    await tester.pump();
+
+    expect(find.text('Welcome back').hitTestable(), findsOneWidget);
+    expect(username, findsOneWidget);
     _expectNoFlutterError(tester);
   });
 
@@ -295,6 +419,132 @@ void main() {
     _expectNoFlutterError(tester);
   });
 
+  testWidgets('settings rows expose accessibility labels', (tester) async {
+    _configurePhone(tester);
+    final semantics = tester.ensureSemantics();
+
+    const user = PyreUser(
+      id: 'u-accessibility',
+      username: 'ember.user',
+      displayName: 'Ember User',
+    );
+
+    await tester.pumpWidget(_app(const SettingsScreen(user: user)));
+    await tester.pump();
+
+    expect(find.byTooltip('Back to profile'), findsOneWidget);
+    expect(find.bySemanticsLabel('Name & username'), findsOneWidget);
+    semantics.dispose();
+    _expectNoFlutterError(tester);
+  });
+
+  testWidgets('normal users can edit username and admin handle stays locked',
+      (tester) async {
+    _configurePhone(tester);
+
+    const normalUser = PyreUser(
+      id: 'u-normal',
+      username: 'ember.user',
+      displayName: 'Ember User',
+    );
+
+    await tester.pumpWidget(_app(const SettingsScreen(user: normalUser)));
+    await tester.pump();
+    await tester.tap(find.text('Name & username'));
+    await tester.pumpAndSettle();
+
+    TextField usernameField() => tester.widget<TextField>(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is TextField &&
+                widget.decoration?.labelText == 'Username',
+          ),
+        );
+
+    expect(usernameField().enabled, isNot(false));
+    expect(find.text('Display name'), findsOneWidget);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    const adminUser = PyreUser(
+      id: 'u-admin',
+      username: 'maximuspyre',
+      displayName: 'Maximus Pyre',
+    );
+
+    await tester.pumpWidget(_app(const SettingsScreen(user: adminUser)));
+    await tester.pump();
+    await tester.tap(find.text('Name & username'));
+    await tester.pumpAndSettle();
+
+    expect(usernameField().enabled, isFalse);
+    expect(find.text('Admin username is fixed.'), findsOneWidget);
+    _expectNoFlutterError(tester);
+  });
+
+  testWidgets('recovery key rotation requires deliberate password confirmation',
+      (tester) async {
+    _configurePhone(tester, logicalSize: const Size(360, 740));
+
+    const user = PyreUser(
+      id: 'u-recovery',
+      username: 'ember.user',
+      displayName: 'Ember User',
+    );
+
+    await tester.pumpWidget(_app(const SettingsScreen(user: user)));
+    await tester.pump();
+
+    await tester.tap(find.text('Recovery key'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Replace recovery key?'), findsOneWidget);
+    expect(find.text('Current password'), findsOneWidget);
+    expect(
+      find.textContaining('old recovery key will stop working'),
+      findsOneWidget,
+    );
+    expect(find.text('Replace key'), findsOneWidget);
+    _expectNoFlutterError(tester);
+  });
+
+  testWidgets('signed-in devices marks current session and revokes another',
+      (tester) async {
+    _configurePhone(tester, logicalSize: const Size(360, 740));
+    final semantics = tester.ensureSemantics();
+    final client = _FakeSessionsClient();
+
+    await tester.pumpWidget(_app(SessionsScreen(client: client)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Signed-in devices'), findsOneWidget);
+    expect(find.text('PyreChat Android'), findsOneWidget);
+    expect(find.text('PyreChat Web'), findsOneWidget);
+    expect(find.text('THIS DEVICE'), findsOneWidget);
+    expect(find.textContaining('Signed in 2026-09-29'), findsOneWidget);
+    expect(find.textContaining('Expires 2026-10-29'), findsOneWidget);
+    expect(find.textContaining('Signed in 2026-09-28'), findsOneWidget);
+    expect(find.textContaining('Expires 2026-10-28'), findsOneWidget);
+    expect(find.text('Sign out'), findsOneWidget);
+    expect(find.byTooltip('Back to settings'), findsOneWidget);
+    expect(find.bySemanticsLabel('PyreChat Android, this device'), findsOneWidget);
+    expect(find.bySemanticsLabel('Sign out PyreChat Web'), findsOneWidget);
+
+    await tester.tap(find.text('Sign out'));
+    await tester.pumpAndSettle();
+    expect(find.text('Sign out this session?'), findsOneWidget);
+
+    await tester.tap(find.text('Sign out').last);
+    await tester.pumpAndSettle();
+
+    expect(client.revoked, isTrue);
+    expect(find.text('PyreChat Web'), findsNothing);
+    expect(find.text('PyreChat Android'), findsOneWidget);
+    semantics.dispose();
+    _expectNoFlutterError(tester);
+  });
+
   testWidgets('add friends rows survive narrow phone and large text',
       (tester) async {
     _configurePhone(tester, logicalSize: const Size(320, 568));
@@ -310,7 +560,7 @@ void main() {
 
     expect(find.text('Add Friends'), findsOneWidget);
     expect(find.text('Added Me'), findsOneWidget);
-    expect(find.text('Find Friends'), findsOneWidget);
+    expect(find.text('Search by username'), findsOneWidget);
     _expectNoFlutterError(tester);
 
     await tester.tap(find.byType(IconButton).at(1));
@@ -368,6 +618,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Message…'), findsOneWidget);
+    expect(find.byTooltip('Open camera'), findsOneWidget);
+    expect(find.byTooltip('Send message'), findsNothing);
     _expectNoFlutterError(tester);
 
     await tester.enterText(
@@ -376,6 +628,41 @@ void main() {
     );
     await tester.pump();
 
+    expect(find.byTooltip('Send message'), findsOneWidget);
+    _expectNoFlutterError(tester);
+  });
+
+  testWidgets(
+      'notification-open retries a stale first thread fetch and reveals the message',
+      (tester) async {
+    _configurePhone(tester);
+
+    const me = PyreUser(
+      id: 'me',
+      username: 'max',
+      displayName: 'Max',
+    );
+    final hub = PyreHub();
+    final client = _NotificationRaceThreadClient();
+
+    await tester.pumpWidget(
+      _app(
+        ChatThreadScreen(
+          chatId: 'chat-1',
+          hub: hub,
+          title: 'Friend',
+          me: me,
+          client: client,
+          openedFromNotification: true,
+        ),
+      ),
+    );
+
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(client.calls, greaterThanOrEqualTo(2));
+    expect(find.text('Fresh notification message'), findsOneWidget);
     _expectNoFlutterError(tester);
   });
 
@@ -551,6 +838,8 @@ void main() {
             onGradeSelected: (_) {},
             onCapture: () {},
             onFlip: () {},
+            onOpenCameraKit: () {},
+            cameraKitConfigured: false,
             onGoChats: () {},
             onGoProfile: () {},
           ),
@@ -564,7 +853,9 @@ void main() {
     expect(find.text('Profile'), findsOneWidget);
     _expectNoFlutterError(tester);
 
-    await tester.tap(find.byType(InkWell).first);
+    final gradeButton = find.byIcon(Icons.tune_rounded);
+    expect(gradeButton, findsOneWidget);
+    await tester.tap(gradeButton);
     await tester.pumpAndSettle();
 
     expect(find.text('Color'), findsOneWidget);

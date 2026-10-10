@@ -61,24 +61,46 @@ class PyreIcon extends StatelessWidget {
     required this.asset,
     required this.size,
     this.opacity = 1,
+    this.visualScale,
+    this.offset = Offset.zero,
   });
 
   final String asset;
   final double size;
   final double opacity;
+  final double? visualScale;
+  final Offset offset;
+
+  double get _recommendedScale => switch (asset) {
+        PyreIcons.actionSearch => 1.34,
+        PyreIcons.navPyreInactive => 1.08,
+        PyreIcons.navCameraInactive => 1.08,
+        PyreIcons.navProfileInactive => 1.08,
+        PyreIcons.actionGallery => 1.05,
+        PyreIcons.actionGroups => 1.05,
+        PyreIcons.actionSettings => 1.04,
+        PyreIcons.actionPin => 1.05,
+        _ => 1.0,
+      };
 
   @override
   Widget build(BuildContext context) {
     return Opacity(
       opacity: opacity,
-      child: Image.asset(
-        asset,
-        width: size,
-        height: size,
-        fit: BoxFit.contain,
-        filterQuality: FilterQuality.high,
-        gaplessPlayback: true,
-        isAntiAlias: true,
+      child: Transform.translate(
+        offset: offset,
+        child: Transform.scale(
+          scale: visualScale ?? _recommendedScale,
+          child: Image.asset(
+            asset,
+            width: size,
+            height: size,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+            gaplessPlayback: true,
+            isAntiAlias: true,
+          ),
+        ),
       ),
     );
   }

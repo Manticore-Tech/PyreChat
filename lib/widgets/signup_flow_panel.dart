@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pyrechat_flutter/auth/birthday_input.dart';
 import 'package:pyrechat_flutter/auth/signup_step.dart';
+import 'package:pyrechat_flutter/services/pyre_external_links.dart';
 import 'package:pyrechat_flutter/theme/pyre_theme.dart';
 import 'package:pyrechat_flutter/widgets/signup_question.dart';
 
@@ -13,10 +14,12 @@ class SignupFlowPanel extends StatelessWidget {
     required this.username,
     required this.birthday,
     required this.password,
+    required this.acceptedTerms,
     required this.onDisplayNameChanged,
     required this.onUsernameChanged,
     required this.onBirthdayChanged,
     required this.onPasswordChanged,
+    required this.onAcceptedTermsChanged,
     required this.onNext,
     required this.busy,
     this.error,
@@ -27,10 +30,12 @@ class SignupFlowPanel extends StatelessWidget {
   final String username;
   final String birthday;
   final String password;
+  final bool acceptedTerms;
   final ValueChanged<String> onDisplayNameChanged;
   final ValueChanged<String> onUsernameChanged;
   final ValueChanged<String> onBirthdayChanged;
   final ValueChanged<String> onPasswordChanged;
+  final ValueChanged<bool> onAcceptedTermsChanged;
   final VoidCallback onNext;
   final bool busy;
   final String? error;
@@ -127,6 +132,53 @@ class SignupFlowPanel extends StatelessWidget {
             obscureText: true,
             textInputAction: TextInputAction.done,
             onSubmitted: (_) => onNext(),
+          ),
+        );
+      case SignupStep.terms:
+        return SignupQuestion(
+          title: step.title,
+          subtitle: step.subtitle,
+          error: error,
+          busy: busy,
+          nextEnabled: acceptedTerms,
+          onNext: onNext,
+          input: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              CheckboxListTile(
+                value: acceptedTerms,
+                onChanged: busy
+                    ? null
+                    : (value) => onAcceptedTermsChanged(value == true),
+                activeColor: PyreColors.ember,
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+                title: const Text(
+                  'I agree to the Terms, Privacy Policy, and PyreChat safety rules.',
+                  style: TextStyle(
+                    color: PyreColors.onPaper,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Wrap(
+                alignment: WrapAlignment.center,
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      PyreExternalLinks.open('https://chat.pyrearms.dev/terms');
+                    },
+                    child: const Text('Terms'),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      PyreExternalLinks.open('https://chat.pyrearms.dev/privacy');
+                    },
+                    child: const Text('Privacy'),
+                  ),
+                ],
+              ),
+            ],
           ),
         );
     }

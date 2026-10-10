@@ -60,4 +60,34 @@ void main() {
     expect(merged.map((m) => m.id), ['older', 'tmp-failed']);
     expect(merged.last.deliveryState, ChatDeliveryState.failed);
   });
+
+  test('recent realtime message survives a stale server refresh', () {
+    final incoming = message(
+      'incoming-1',
+      createdAt: '2026-09-25T20:00:08Z',
+    );
+
+    final merged = mergeThreadMessages(
+      remote: const [],
+      current: [incoming],
+      now: DateTime.parse('2026-09-25T20:00:10Z'),
+    );
+
+    expect(merged.map((m) => m.id), ['incoming-1']);
+  });
+
+  test('old missing server message expires after the grace window', () {
+    final old = message(
+      'old-1',
+      createdAt: '2026-09-25T20:00:00Z',
+    );
+
+    final merged = mergeThreadMessages(
+      remote: const [],
+      current: [old],
+      now: DateTime.parse('2026-09-25T20:00:20Z'),
+    );
+
+    expect(merged, isEmpty);
+  });
 }

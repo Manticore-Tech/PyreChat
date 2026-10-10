@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pyrechat_flutter/theme/pyre_theme.dart';
 
-class LoginPanel extends StatelessWidget {
+class LoginPanel extends StatefulWidget {
   const LoginPanel({
     super.key,
     required this.username,
@@ -22,9 +22,64 @@ class LoginPanel extends StatelessWidget {
   final String? error;
 
   @override
-  Widget build(BuildContext context) {
-    final canSubmit = username.trim().isNotEmpty && password.isNotEmpty && !busy;
+  State<LoginPanel> createState() => _LoginPanelState();
+}
 
+class _LoginPanelState extends State<LoginPanel> {
+  late final TextEditingController _usernameController;
+  late final TextEditingController _passwordController;
+  bool _obscurePassword = true;
+
+  bool get _canSubmit =>
+      _usernameController.text.trim().isNotEmpty &&
+      _passwordController.text.isNotEmpty &&
+      !widget.busy;
+
+  @override
+  void initState() {
+    super.initState();
+    _usernameController = TextEditingController(text: widget.username);
+    _passwordController = TextEditingController(text: widget.password);
+  }
+
+  @override
+  void didUpdateWidget(covariant LoginPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncController(_usernameController, oldWidget.username, widget.username);
+    _syncController(_passwordController, oldWidget.password, widget.password);
+  }
+
+  void _syncController(
+    TextEditingController controller,
+    String oldValue,
+    String newValue,
+  ) {
+    if (newValue == oldValue || controller.text == newValue) return;
+    controller.value = TextEditingValue(
+      text: newValue,
+      selection: TextSelection.collapsed(offset: newValue.length),
+    );
+  }
+
+  void _onUsernameChanged(String value) {
+    widget.onUsernameChanged(value);
+    if (mounted) setState(() {});
+  }
+
+  void _onPasswordChanged(String value) {
+    widget.onPasswordChanged(value);
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Center(
@@ -51,11 +106,6 @@ class LoginPanel extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Align(
-                    alignment: Alignment.center,
-                    child: _LoginEyebrow(),
-                  ),
-                  const SizedBox(height: 12),
                   const Text(
                     'Welcome back',
                     textAlign: TextAlign.center,
@@ -69,7 +119,7 @@ class LoginPanel extends StatelessWidget {
                   ),
                   const SizedBox(height: 9),
                   const Text(
-                    'Come back to your people.',
+                    'Sign in to your account.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: PyreColors.onPaperMuted,
@@ -80,7 +130,8 @@ class LoginPanel extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
                   TextField(
-                    onChanged: onUsernameChanged,
+                    controller: _usernameController,
+                    onChanged: _onUsernameChanged,
                     style: const TextStyle(
                       color: PyreColors.onPaper,
                       fontWeight: FontWeight.w600,
@@ -97,8 +148,9 @@ class LoginPanel extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   TextField(
-                    onChanged: onPasswordChanged,
-                    obscureText: true,
+                    controller: _passwordController,
+                    onChanged: _onPasswordChanged,
+                    obscureText: _obscurePassword,
                     style: const TextStyle(
                       color: PyreColors.onPaper,
                       fontWeight: FontWeight.w600,
@@ -108,14 +160,25 @@ class LoginPanel extends StatelessWidget {
                     enableSuggestions: false,
                     autofillHints: const [AutofillHints.password],
                     onSubmitted: (_) {
-                      if (canSubmit) onSubmit();
+                      if (_canSubmit) widget.onSubmit();
                     },
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Password',
-                      prefixIcon: Icon(Icons.lock_outline_rounded),
+                      prefixIcon: const Icon(Icons.lock_outline_rounded),
+                      suffixIcon: IconButton(
+                        tooltip: _obscurePassword ? 'Show password' : 'Hide password',
+                        onPressed: () {
+                          setState(() => _obscurePassword = !_obscurePassword);
+                        },
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                      ),
                     ),
                   ),
-                  if (error != null && error!.isNotEmpty) ...[
+                  if (widget.error != null && widget.error!.isNotEmpty) ...[
                     const SizedBox(height: 13),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -126,20 +189,26 @@ class LoginPanel extends StatelessWidget {
                         color: PyreColors.error.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: Text(
-                        error!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: PyreColors.errorOnPaper,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
+                      child: Semantics(
+                        liveRegion: true,
+                        label: 'Login error: ${widget.error!}',
+                        child: ExcludeSemantics(
+                          child: Text(
+                            widget.error!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: PyreColors.errorOnPaper,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ],
                   const SizedBox(height: 18),
                   FilledButton(
-                    onPressed: canSubmit ? onSubmit : null,
+                    onPressed: _canSubmit ? widget.onSubmit : null,
                     style: FilledButton.styleFrom(
                       backgroundColor: PyreColors.ink,
                       foregroundColor: PyreColors.paper,
@@ -149,13 +218,19 @@ class LoginPanel extends StatelessWidget {
                           PyreColors.ink.withValues(alpha: 0.38),
                       minimumSize: const Size.fromHeight(56),
                     ),
-                    child: busy
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: PyreColors.paper,
+                    child: widget.busy
+                        ? Semantics(
+                            liveRegion: true,
+                            label: 'Logging in',
+                            child: ExcludeSemantics(
+                              child: SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  color: PyreColors.paper,
+                                ),
+                              ),
                             ),
                           )
                         : const Text('Log in'),
@@ -170,26 +245,3 @@ class LoginPanel extends StatelessWidget {
   }
 }
 
-class _LoginEyebrow extends StatelessWidget {
-  const _LoginEyebrow();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: PyreColors.emberWash,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: const Text(
-        'BACK TO THE FIRE',
-        style: TextStyle(
-          color: PyreColors.emberDeep,
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0.9,
-        ),
-      ),
-    );
-  }
-}

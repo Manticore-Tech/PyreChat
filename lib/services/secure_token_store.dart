@@ -11,23 +11,26 @@ abstract class SecureTokenStore {
   Future<void> delete();
 }
 
-/// Android-backed secure token storage.
+/// Mobile secure token storage.
 ///
-/// The Android host keeps the encryption key inside Android Keystore and only
-/// returns the decrypted bearer token to the Dart process when PyreChat needs
-/// it. Other platforms currently fall back to the existing development store.
+/// Android keeps the encryption key inside Android Keystore. iOS stores the
+/// bearer token in Keychain. Both hosts only return the token to Dart when
+/// PyreChat needs it. SessionStore fails closed on production Android/iOS when
+/// secure persistence is unavailable; plaintext fallback is non-mobile dev only.
 class PlatformSecureTokenStore implements SecureTokenStore {
   const PlatformSecureTokenStore();
 
   static const MethodChannel _channel =
       MethodChannel('dev.pyrearms.pyrechat/secure_session');
 
-  bool get _isAndroid =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  bool get _isSupportedMobilePlatform =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
 
   @override
   Future<bool> get isSupported async {
-    if (!_isAndroid) return false;
+    if (!_isSupportedMobilePlatform) return false;
     try {
       return await _channel.invokeMethod<bool>('isSupported') ?? false;
     } on MissingPluginException {

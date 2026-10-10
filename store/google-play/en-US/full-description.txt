@@ -1,0 +1,16 @@
+Pyre Social is a lightweight messenger built around our independent RCS-style messaging service.
+
+Create your own device-owned Pyre Social RCS address, share it with a friend, and start a direct one-to-one text conversation. The standalone messaging service stores offline messages until your app retrieves them and supports realtime updates, typing activity, and delivered/read confirmations.
+
+Current alpha features:
+- Secure local Ed25519 signing identity, without a separate legacy password account.
+- Copy your RCS address or paste another person's full address to start a chat.
+- Send and receive text between Android and the Flutter web client.
+- Reconnect to fetch offline message history.
+- See typing and receipt updates where supported.
+
+Important privacy and compatibility limitations: RCS text is not end-to-end encrypted in this alpha. Our RCS-style protocol is separate from carrier RCS; it cannot message telephone numbers or SMS users. Your signing keys are kept on the device or in the browser's protected storage. Cross-device identity recovery is not implemented, so clearing local identity storage can make the original address unrecoverable.
+
+Only use the app for non-sensitive test conversations during this alpha. Group messaging, rich media transfer, carrier interoperability, and reviewed end-to-end encryption are not included in this release.
+
+Visit https://pyre.social/privacy for privacy information, https://pyre.social/support for support, and https://pyre.social/account/delete for account-deletion information.

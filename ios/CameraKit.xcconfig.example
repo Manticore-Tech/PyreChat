@@ -1,0 +1,6 @@
+// Copy to CameraKit.xcconfig and fill with values from the Snap Camera Kit portal.
+// Do not commit CameraKit.xcconfig.
+// Camera Kit remains disabled unless this internal-evaluation switch is true.
+CAMERA_KIT_INTERNAL_EVAL = false
+CAMERA_KIT_API_TOKEN =
+CAMERA_KIT_LENS_GROUP_IDS =

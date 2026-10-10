@@ -1,17 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:pyrechat_flutter/models/user.dart';
 import 'package:pyrechat_flutter/screens/profile/settings_screen.dart';
+import 'package:pyrechat_flutter/screens/pyre/pyre_page_screen.dart';
+import 'package:pyrechat_flutter/services/appearance_prefs.dart';
+import 'package:pyrechat_flutter/services/profile_photo_prefs.dart';
+import 'package:pyrechat_flutter/services/pyre_client.dart';
+import 'package:pyrechat_flutter/services/pyre_api.dart';
+import 'package:pyrechat_flutter/services/user_image_picker.dart';
 import 'package:pyrechat_flutter/theme/pyre_theme.dart';
 import 'package:pyrechat_flutter/widgets/animated_pyre_fire.dart';
 import 'package:pyrechat_flutter/widgets/pyre_avatar.dart';
 import 'package:pyrechat_flutter/widgets/pyre_glass_surface.dart';
-import 'package:pyrechat_flutter/widgets/pyre_icon.dart';
 import 'package:pyrechat_flutter/widgets/pyre_night_backdrop.dart';
 
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key, required this.user});
+  const ProfileScreen({
+    super.key,
+    required this.user,
+    this.onUserChanged,
+  });
 
   final PyreUser user;
+  final ValueChanged<PyreUser>? onUserChanged;
+
+  Future<void> _changeProfilePhoto(BuildContext context) async {
+    try {
+      final bytes = await UserImagePicker.pick(UserImagePurpose.profile);
+      if (bytes == null || !context.mounted) return;
+      await ProfilePhotoPrefs.instance.setFor(user.id, bytes);
+      String message = 'Profile photo saved on this device.';
+      try {
+        await PyreClient().uploadProfilePhoto(bytes);
+        message = 'Profile photo synced across PyreChat.';
+      } on PyreApiException catch (error) {
+        message = error.statusCode == 404
+            ? 'Profile photo saved locally. Server sync needs the backend update.'
+            : 'Profile photo saved locally. Sync failed: ${error.message}';
+      }
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not update profile photo: $error')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,11 +75,15 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
               _RoundAction(
-                asset: PyreIcons.actionSettings,
+                icon: Icons.settings_rounded,
+                semanticLabel: 'Open settings',
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => SettingsScreen(user: user),
+                      builder: (_) => SettingsScreen(
+                        user: user,
+                        onUserChanged: onUserChanged,
+                      ),
                     ),
                   );
                 },
@@ -73,6 +113,37 @@ class ProfileScreen extends StatelessWidget {
                   user: user,
                   size: 104,
                   showRing: true,
+                ),
+                Positioned(
+                  right: 4,
+                  bottom: 4,
+                  child: Semantics(
+                    button: true,
+                    label: 'Change profile photo',
+                    child: Tooltip(
+                      message: 'Change profile photo',
+                      child: Material(
+                        color: PyreColors.nightCardStrong,
+                        shape: const CircleBorder(),
+                        elevation: 2,
+                        child: InkWell(
+                          onTap: () => _changeProfilePhoto(context),
+                          customBorder: const CircleBorder(),
+                          child: SizedBox(
+                            width: 36,
+                            height: 36,
+                            child: ExcludeSemantics(
+                              child: Icon(
+                                Icons.photo_camera_rounded,
+                                color: AppearancePrefs.instance.accentColor,
+                                size: 19,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -164,27 +235,29 @@ class ProfileScreen extends StatelessWidget {
           _ProfileMenuCard(
             children: [
               _ProfileRow(
-                asset: PyreIcons.actionGallery,
-                title: 'Media',
-                subtitle: 'Coming after the alpha',
-                enabled: false,
+                icon: Icons.local_fire_department_outlined,
+                title: 'My Pyre',
+                subtitle: 'Your private space and moments',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => PyrePageScreen(user: user),
+                    ),
+                  );
+                },
               ),
               const _Divider(),
               _ProfileRow(
-                asset: PyreIcons.actionGroups,
-                title: 'Friends',
-                subtitle: 'Coming after the alpha',
-                enabled: false,
-              ),
-              const _Divider(),
-              _ProfileRow(
-                asset: PyreIcons.actionSettings,
+                icon: Icons.settings_rounded,
                 title: 'Settings',
                 subtitle: 'Account, notifications, privacy',
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => SettingsScreen(user: user),
+                      builder: (_) => SettingsScreen(
+                        user: user,
+                        onUserChanged: onUserChanged,
+                      ),
                     ),
                   );
                 },
@@ -199,26 +272,41 @@ class ProfileScreen extends StatelessWidget {
 
 class _RoundAction extends StatelessWidget {
   const _RoundAction({
-    required this.asset,
+    required this.icon,
     required this.onTap,
+    required this.semanticLabel,
   });
 
-  final String asset;
+  final IconData icon;
   final VoidCallback onTap;
+  final String semanticLabel;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      shape: const CircleBorder(),
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: SizedBox(
-          width: 46,
-          height: 46,
-          child: Center(
-            child: PyreIcon(asset: asset, size: 44),
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      child: Tooltip(
+        message: semanticLabel,
+        child: Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            onTap: onTap,
+            customBorder: const CircleBorder(),
+            child: SizedBox(
+              width: 46,
+              height: 46,
+              child: Center(
+                child: ExcludeSemantics(
+                  child: Icon(
+                    icon,
+                    color: PyreColors.nightText,
+                    size: 28,
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -245,37 +333,40 @@ class _ProfileMenuCard extends StatelessWidget {
 
 class _ProfileRow extends StatelessWidget {
   const _ProfileRow({
-    required this.asset,
+    required this.icon,
     required this.title,
     required this.subtitle,
     this.onTap,
-    this.enabled = true,
   });
 
-  final String asset;
+  final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback? onTap;
-  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
-    return Opacity(
-      opacity: enabled ? 1 : 0.52,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: enabled ? onTap : null,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(18),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
           child: Row(
             children: [
-              SizedBox(
+              Container(
                 width: 40,
                 height: 40,
-                child: Center(
-                  child: PyreIcon(asset: asset, size: 38),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: PyreColors.ember.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(
+                  icon,
+                  color: PyreColors.emberGlow,
+                  size: 21,
                 ),
               ),
               const SizedBox(width: 12),
@@ -305,25 +396,14 @@ class _ProfileRow extends StatelessWidget {
                   ],
                 ),
               ),
-              if (enabled)
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  color: PyreColors.nightMuted,
-                )
-              else
-                const Text(
-                  'Soon',
-                  style: TextStyle(
-                    color: PyreColors.nightMuted,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: PyreColors.nightMuted,
+              ),
             ],
           ),
         ),
       ),
-    ),
     );
   }
 }

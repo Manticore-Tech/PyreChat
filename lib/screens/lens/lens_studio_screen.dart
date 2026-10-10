@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -106,7 +107,7 @@ class _LensStudioScreenState extends State<LensStudioScreen> with TickerProvider
   }
 
   Future<void> _boot() async {
-    if (!await Permission.camera.request().isGranted) return;
+    if (!kIsWeb && !await Permission.camera.request().isGranted) return;
     final cams = await availableCameras();
     if (cams.isEmpty) return;
     final front = cams.where((c) => c.lensDirection == CameraLensDirection.front);
@@ -116,7 +117,9 @@ class _LensStudioScreenState extends State<LensStudioScreen> with TickerProvider
       cam,
       ResolutionPreset.high,
       enableAudio: false,
-      imageFormatGroup: Platform.isIOS ? ImageFormatGroup.bgra8888 : ImageFormatGroup.nv21,
+      imageFormatGroup: kIsWeb
+          ? ImageFormatGroup.unknown
+          : (Platform.isIOS ? ImageFormatGroup.bgra8888 : ImageFormatGroup.nv21),
     );
     _controller = controller;
     await controller.initialize();
@@ -137,6 +140,13 @@ class _LensStudioScreenState extends State<LensStudioScreen> with TickerProvider
   }
 
   Future<void> _startStream() async {
+    if (kIsWeb) {
+      _trackStreamOn = false;
+      _overlayFrame.value = null;
+      _ticker.stop();
+      return;
+    }
+
     final controller = _controller;
     if (controller == null || !controller.value.isInitialized || _trackStreamOn) return;
 

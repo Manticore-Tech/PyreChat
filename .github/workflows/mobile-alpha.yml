@@ -5,6 +5,17 @@ on:
     branches: [main, master]
   pull_request:
   workflow_dispatch:
+    inputs:
+      build_signed_ios:
+        description: Build Apple-distribution-signed iOS IPA
+        required: false
+        default: false
+        type: boolean
+      enable_camera_kit:
+        description: Enable Camera Kit in this manually triggered alpha build
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -34,6 +45,8 @@ jobs:
   android:
     needs: checks
     runs-on: ubuntu-latest
+    env:
+      ANDROID_APK_PATH: ${{ github.event_name == 'pull_request' && 'build/app/outputs/flutter-apk/app-debug.apk' || 'build/app/outputs/flutter-apk/app-release.apk' }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v5
@@ -46,19 +59,140 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - name: Build Android alpha APK
-        run: flutter build apk --debug --no-pub
+      - name: Configure stable Android alpha signing
+        if: github.event_name != 'pull_request'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              missing=1
+            fi
+          done
+
+          if [ "$missing" -eq 1 ]; then
+            echo "::error::Stable Android alpha signing is required for push/manual builds. Configure ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, and ANDROID_KEY_PASSWORD."
+            exit 1
+          fi
+
+          KEYSTORE_PATH="$RUNNER_TEMP/pyrechat-alpha.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          test -s "$KEYSTORE_PATH"
+
+          {
+            printf 'ANDROID_KEYSTORE_PATH=%s\n' "$KEYSTORE_PATH"
+            printf 'ANDROID_KEYSTORE_PASSWORD=%s\n' "$ANDROID_KEYSTORE_PASSWORD"
+            printf 'ANDROID_KEY_ALIAS=%s\n' "$ANDROID_KEY_ALIAS"
+            printf 'ANDROID_KEY_PASSWORD=%s\n' "$ANDROID_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+          echo "Stable Android alpha signing configured."
+
+      - name: Configure Firebase for Android notifications
+        if: github.event_name != 'pull_request'
+        env:
+          FIREBASE_ANDROID_GOOGLE_SERVICES_JSON: ${{ secrets.FIREBASE_ANDROID_GOOGLE_SERVICES_JSON }}
+        run: |
+          set -euo pipefail
+          if [ -z "${FIREBASE_ANDROID_GOOGLE_SERVICES_JSON:-}" ]; then
+            echo "::error::FIREBASE_ANDROID_GOOGLE_SERVICES_JSON is required for release builds so FCM notifications are actually enabled."
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_ANDROID_GOOGLE_SERVICES_JSON" > android/app/google-services.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("android/app/google-services.json")
+          data = json.loads(path.read_text(encoding="utf-8"))
+          packages = {
+              client.get("client_info", {})
+                    .get("android_client_info", {})
+                    .get("package_name")
+              for client in data.get("client", [])
+          }
+          expected = "dev.pyrearms.pyrechat_flutter"
+          if expected not in packages:
+              raise SystemExit(
+                  f"google-services.json does not contain Firebase Android app {expected}; found: {sorted(p for p in packages if p)}"
+              )
+          print(f"Firebase Android config verified for {expected}")
+          PY
+      - name: Configure Camera Kit for Android
+        env:
+          CAMERA_KIT_INTERNAL_EVAL: ${{ github.event_name == 'workflow_dispatch' && inputs.enable_camera_kit }}
+          CAMERA_KIT_API_TOKEN: ${{ secrets.CAMERA_KIT_API_TOKEN }}
+          CAMERA_KIT_LENS_GROUP_IDS: ${{ secrets.CAMERA_KIT_LENS_GROUP_IDS }}
+        run: |
+          set -euo pipefail
+          if [ "${CAMERA_KIT_INTERNAL_EVAL:-false}" = "true" ]; then
+            if [ -z "${CAMERA_KIT_API_TOKEN:-}" ] || [ -z "${CAMERA_KIT_LENS_GROUP_IDS:-}" ]; then
+              echo "::error::Camera Kit was explicitly enabled for this workflow run, but CAMERA_KIT_API_TOKEN or CAMERA_KIT_LENS_GROUP_IDS is missing."
+              exit 1
+            fi
+            {
+              printf 'CAMERA_KIT_INTERNAL_EVAL=true\n'
+              printf 'CAMERA_KIT_API_TOKEN=%s\n' "$CAMERA_KIT_API_TOKEN"
+              printf 'CAMERA_KIT_LENS_GROUP_IDS=%s\n' "$CAMERA_KIT_LENS_GROUP_IDS"
+            } > android/camerakit.properties
+            echo "Camera Kit internal evaluation enabled for Android."
+          else
+            echo "Camera Kit internal evaluation disabled; building native fallback camera only."
+          fi
+      - name: Build Android artifacts
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            flutter build apk --debug --no-pub
+          else
+            flutter build apk --release --no-pub
+            flutter build appbundle --release --no-pub
+          fi
       - name: Save Android alpha APK
         uses: actions/upload-artifact@v4
         with:
           name: pyrechat-android-alpha
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          path: ${{ env.ANDROID_APK_PATH }}
           if-no-files-found: error
           retention-days: 30
+      - name: Save Google Play AAB
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyrechat-android-play
+          path: build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/setup-node@v4
+        if: github.event_name != 'pull_request'
+        with:
+          node-version: '22'
+      - name: Publish Android APK to chat.pyrearms.dev
+        if: github.event_name != 'pull_request'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "::warning::Cloudflare credentials are missing; skipping website APK publish."
+            exit 0
+          fi
+          npx --yes wrangler@4 r2 object put pyrechat-media/app/pyrechat.apk \
+            --file "$ANDROID_APK_PATH" \
+            --content-type application/vnd.android.package-archive \
+            --remote
 
   ios-sideload:
     needs: checks
     runs-on: macos-26
+    env:
+      IOS_BUNDLE_ID: dev.pyrearms.pyrechatFlutter
     steps:
       - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
@@ -67,6 +201,54 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
+      - name: Configure Firebase for iOS notifications
+        env:
+          FIREBASE_IOS_GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.FIREBASE_IOS_GOOGLE_SERVICE_INFO_PLIST }}
+        run: |
+          set -euo pipefail
+          TARGET="ios/Runner/GoogleService-Info.plist"
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            cp ios/Runner/GoogleService-Info.plist.example "$TARGET"
+            echo "::warning::Using placeholder Firebase iOS config for pull-request compile validation only."
+            exit 0
+          fi
+
+          if [ -z "${FIREBASE_IOS_GOOGLE_SERVICE_INFO_PLIST:-}" ]; then
+            echo "::error::FIREBASE_IOS_GOOGLE_SERVICE_INFO_PLIST is required for iOS alpha/store builds."
+            exit 1
+          fi
+
+          printf '%s' "$FIREBASE_IOS_GOOGLE_SERVICE_INFO_PLIST" > "$TARGET"
+          test -s "$TARGET"
+
+          CONFIG_BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :BUNDLE_ID' "$TARGET")
+          if [ "$CONFIG_BUNDLE_ID" != "$IOS_BUNDLE_ID" ]; then
+            echo "::error::Firebase iOS BUNDLE_ID does not match $IOS_BUNDLE_ID."
+            exit 1
+          fi
+          echo "Firebase iOS configuration validated."
+      - name: Configure Camera Kit for iOS
+        env:
+          CAMERA_KIT_INTERNAL_EVAL: ${{ github.event_name == 'workflow_dispatch' && inputs.enable_camera_kit }}
+          CAMERA_KIT_API_TOKEN: ${{ secrets.CAMERA_KIT_API_TOKEN }}
+          CAMERA_KIT_LENS_GROUP_IDS: ${{ secrets.CAMERA_KIT_LENS_GROUP_IDS }}
+        run: |
+          set -euo pipefail
+          if [ "${CAMERA_KIT_INTERNAL_EVAL:-false}" = "true" ]; then
+            if [ -z "${CAMERA_KIT_API_TOKEN:-}" ] || [ -z "${CAMERA_KIT_LENS_GROUP_IDS:-}" ]; then
+              echo "::error::Camera Kit was explicitly enabled for this workflow run, but CAMERA_KIT_API_TOKEN or CAMERA_KIT_LENS_GROUP_IDS is missing."
+              exit 1
+            fi
+            {
+              printf 'CAMERA_KIT_INTERNAL_EVAL = true\n'
+              printf 'CAMERA_KIT_API_TOKEN = %s\n' "$CAMERA_KIT_API_TOKEN"
+              printf 'CAMERA_KIT_LENS_GROUP_IDS = %s\n' "$CAMERA_KIT_LENS_GROUP_IDS"
+            } > ios/CameraKit.xcconfig
+            echo "Camera Kit internal evaluation enabled for iOS."
+          else
+            echo "Camera Kit internal evaluation disabled; building native fallback camera only."
+          fi
       - name: Compile iOS without signing
         run: flutter build ios --release --no-codesign --no-pub
       - name: Package unsigned IPA for desktop sideloading
@@ -88,3 +270,216 @@ jobs:
           path: build/ios/ipa/PyreChat-unsigned.ipa
           if-no-files-found: error
           retention-days: 30
+      - uses: actions/setup-node@v4
+        if: github.event_name != 'pull_request'
+        with:
+          node-version: '22'
+      - name: Publish unsigned IPA to chat.pyrearms.dev
+        if: github.event_name != 'pull_request'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "::warning::Cloudflare credentials are missing; skipping website IPA publish."
+            exit 0
+          fi
+          npx --yes wrangler@4 r2 object put pyrechat-media/app/pyrechat.ipa \
+            --file build/ios/ipa/PyreChat-unsigned.ipa \
+            --content-type application/octet-stream \
+            --remote
+
+
+  ios-signed:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_signed_ios }}
+    needs: checks
+    runs-on: macos-26
+    env:
+      IOS_BUNDLE_ID: dev.pyrearms.pyrechatFlutter
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Configure Firebase for iOS notifications
+        env:
+          FIREBASE_IOS_GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.FIREBASE_IOS_GOOGLE_SERVICE_INFO_PLIST }}
+        run: |
+          set -euo pipefail
+          TARGET="ios/Runner/GoogleService-Info.plist"
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            cp ios/Runner/GoogleService-Info.plist.example "$TARGET"
+            echo "::warning::Using placeholder Firebase iOS config for pull-request compile validation only."
+            exit 0
+          fi
+
+          if [ -z "${FIREBASE_IOS_GOOGLE_SERVICE_INFO_PLIST:-}" ]; then
+            echo "::error::FIREBASE_IOS_GOOGLE_SERVICE_INFO_PLIST is required for iOS alpha/store builds."
+            exit 1
+          fi
+
+          printf '%s' "$FIREBASE_IOS_GOOGLE_SERVICE_INFO_PLIST" > "$TARGET"
+          test -s "$TARGET"
+
+          CONFIG_BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :BUNDLE_ID' "$TARGET")
+          if [ "$CONFIG_BUNDLE_ID" != "$IOS_BUNDLE_ID" ]; then
+            echo "::error::Firebase iOS BUNDLE_ID does not match $IOS_BUNDLE_ID."
+            exit 1
+          fi
+          echo "Firebase iOS configuration validated."
+
+      - name: Configure Camera Kit for iOS
+        env:
+          CAMERA_KIT_INTERNAL_EVAL: ${{ github.event_name == 'workflow_dispatch' && inputs.enable_camera_kit }}
+          CAMERA_KIT_API_TOKEN: ${{ secrets.CAMERA_KIT_API_TOKEN }}
+          CAMERA_KIT_LENS_GROUP_IDS: ${{ secrets.CAMERA_KIT_LENS_GROUP_IDS }}
+        run: |
+          set -euo pipefail
+          if [ "${CAMERA_KIT_INTERNAL_EVAL:-false}" = "true" ]; then
+            if [ -z "${CAMERA_KIT_API_TOKEN:-}" ] || [ -z "${CAMERA_KIT_LENS_GROUP_IDS:-}" ]; then
+              echo "::error::Camera Kit was explicitly enabled for this workflow run, but CAMERA_KIT_API_TOKEN or CAMERA_KIT_LENS_GROUP_IDS is missing."
+              exit 1
+            fi
+            {
+              printf 'CAMERA_KIT_INTERNAL_EVAL = true\n'
+              printf 'CAMERA_KIT_API_TOKEN = %s\n' "$CAMERA_KIT_API_TOKEN"
+              printf 'CAMERA_KIT_LENS_GROUP_IDS = %s\n' "$CAMERA_KIT_LENS_GROUP_IDS"
+            } > ios/CameraKit.xcconfig
+            echo "Camera Kit internal evaluation enabled for iOS."
+          else
+            echo "Camera Kit internal evaluation disabled; building native fallback camera only."
+          fi
+
+      - name: Import Apple distribution signing assets
+        env:
+          IOS_DISTRIBUTION_CERT_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERT_P12_BASE64 }}
+          IOS_DISTRIBUTION_CERT_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERT_PASSWORD }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+        run: |
+          set -euo pipefail
+
+          required_names="IOS_DISTRIBUTION_CERT_P12_BASE64 IOS_DISTRIBUTION_CERT_PASSWORD IOS_PROVISIONING_PROFILE_BASE64 IOS_TEAM_ID"
+          for name in $required_names; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is required for a signed iOS IPA."
+              exit 1
+            fi
+          done
+
+          CERT_PATH="$RUNNER_TEMP/pyrechat-distribution.p12"
+          PROFILE_PATH="$RUNNER_TEMP/pyrechat.mobileprovision"
+          KEYCHAIN_PATH="$RUNNER_TEMP/pyrechat-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+
+          printf '%s' "$IOS_DISTRIBUTION_CERT_P12_BASE64" | base64 -D > "$CERT_PATH"
+          printf '%s' "$IOS_PROVISIONING_PROFILE_BASE64" | base64 -D > "$PROFILE_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$IOS_DISTRIBUTION_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+
+          security cms -D -i "$PROFILE_PATH" > "$RUNNER_TEMP/profile.plist"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/profile.plist")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/profile.plist")
+          PROFILE_APP_ID=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$RUNNER_TEMP/profile.plist")
+          PROFILE_TEAM_ID=$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$RUNNER_TEMP/profile.plist")
+          PROFILE_APS_ENVIRONMENT=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:aps-environment' "$RUNNER_TEMP/profile.plist" 2>/dev/null || true)
+
+          if [ "$PROFILE_TEAM_ID" != "$IOS_TEAM_ID" ]; then
+            echo "::error::Provisioning profile team does not match IOS_TEAM_ID."
+            exit 1
+          fi
+
+          EXPECTED_APP_ID="$IOS_TEAM_ID.$IOS_BUNDLE_ID"
+          if [ "$PROFILE_APP_ID" != "$EXPECTED_APP_ID" ]; then
+            echo "::error::Provisioning profile application identifier does not match $IOS_BUNDLE_ID."
+            exit 1
+          fi
+
+          if [ "$PROFILE_APS_ENVIRONMENT" != "production" ]; then
+            echo "::error::Provisioning profile must include production Push Notifications (aps-environment=production)."
+            exit 1
+          fi
+
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+
+          echo "PYRE_IOS_PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+          echo "PYRE_IOS_TEAM_ID=$IOS_TEAM_ID" >> "$GITHUB_ENV"
+
+      - name: Prime Flutter iOS release build
+        run: flutter build ios --release --no-codesign --no-pub
+
+      - name: Archive and export signed IPA
+        run: |
+          set -euo pipefail
+
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>teamID</key>
+            <string>$PYRE_IOS_TEAM_ID</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$IOS_BUNDLE_ID</key>
+              <string>$PYRE_IOS_PROFILE_NAME</string>
+            </dict>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+
+          rm -rf "$RUNNER_TEMP/PyreChat.xcarchive" build/ios/ipa
+          mkdir -p build/ios/ipa
+
+          xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/PyreChat.xcarchive" archive DEVELOPMENT_TEAM="$PYRE_IOS_TEAM_ID" CODE_SIGN_STYLE=Manual PROVISIONING_PROFILE_SPECIFIER="$PYRE_IOS_PROFILE_NAME" CODE_SIGN_IDENTITY="Apple Distribution" PRODUCT_BUNDLE_IDENTIFIER="$IOS_BUNDLE_ID"
+
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/PyreChat.xcarchive" -exportPath build/ios/ipa -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+
+          IPA_PATH="$(find build/ios/ipa -maxdepth 1 -name '*.ipa' ! -name 'PyreChat-signed.ipa' -print -quit)"
+          if [ -z "$IPA_PATH" ] || [ ! -s "$IPA_PATH" ]; then
+            echo "::error::Signed IPA was not produced."
+            exit 1
+          fi
+          cp "$IPA_PATH" build/ios/ipa/PyreChat-signed.ipa
+
+      - name: Verify IPA signature
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/pyrechat-ipa-verify"
+          mkdir -p "$RUNNER_TEMP/pyrechat-ipa-verify"
+          unzip -q build/ios/ipa/PyreChat-signed.ipa -d "$RUNNER_TEMP/pyrechat-ipa-verify"
+          APP_PATH="$(find "$RUNNER_TEMP/pyrechat-ipa-verify/Payload" -maxdepth 1 -name '*.app' -print -quit)"
+          test -n "$APP_PATH"
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          codesign -dv --verbose=4 "$APP_PATH" 2>&1 | grep -E '^(Identifier|TeamIdentifier|Authority)='
+
+      - name: Save signed iOS IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyrechat-ios-signed
+          path: build/ios/ipa/PyreChat-signed.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Clean temporary signing keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/pyrechat-signing.keychain-db" || true

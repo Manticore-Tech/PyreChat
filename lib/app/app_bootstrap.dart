@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:pyrechat_flutter/models/user.dart';
 import 'package:pyrechat_flutter/pages/onboarding/onboarding_page.dart';
-import 'package:pyrechat_flutter/screens/app_shell_screen.dart';
+// Load the camera, realtime, and encryption-heavy signed-in shell only when
+// an account is active. Unauthenticated web visitors can reach login sooner.
+import 'package:pyrechat_flutter/screens/app_shell_screen.dart' deferred as shell;
+import 'package:pyrechat_flutter/services/chat_cache.dart';
 import 'package:pyrechat_flutter/services/chat_draft_store.dart';
 import 'package:pyrechat_flutter/services/pyre_api.dart';
 import 'package:pyrechat_flutter/services/session_events.dart';
@@ -24,6 +29,7 @@ class _AppBootstrapState extends State<AppBootstrap> {
   bool _booting = true;
   bool _clearingInvalidSession = false;
   String? _sessionNotice;
+  Future<void>? _shellLibrary;
 
   @override
   void initState() {
@@ -45,6 +51,10 @@ class _AppBootstrapState extends State<AppBootstrap> {
   Future<void> _clearInvalidSession(String message) async {
     if (_clearingInvalidSession) return;
     _clearingInvalidSession = true;
+    final cachedUser = _user ?? await _session.user;
+    if (cachedUser != null) {
+      await ChatCache.instance.clearUser(cachedUser.id);
+    }
     await _session.clear();
     ChatDraftStore.instance.clearAll();
     if (!mounted) return;
@@ -73,6 +83,25 @@ class _AppBootstrapState extends State<AppBootstrap> {
       return;
     }
 
+    final cached = await _session.user;
+    if (cached != null) {
+      if (!mounted) return;
+      setState(() {
+        _user = cached;
+        _booting = false;
+      });
+      unawaited(_refreshSession(token, cachedUser: cached));
+      return;
+    }
+
+    await _refreshSession(token, requiredForBoot: true);
+  }
+
+  Future<void> _refreshSession(
+    String token, {
+    PyreUser? cachedUser,
+    bool requiredForBoot = false,
+  }) async {
     try {
       final user = await _api.me(token: token);
       await _session.save(token: token, user: user);
@@ -83,23 +112,33 @@ class _AppBootstrapState extends State<AppBootstrap> {
       });
     } on PyreApiException catch (e) {
       if (e.statusCode == 401 || e.statusCode == 403) {
+        final user = cachedUser ?? await _session.user;
+        if (user != null) {
+          await ChatCache.instance.clearUser(user.id);
+        }
         await _session.clear();
-      } else {
-        final cached = await _session.user;
         if (!mounted) return;
+        Navigator.of(context).popUntil((route) => route.isFirst);
         setState(() {
-          _user = cached;
+          _user = null;
           _booting = false;
+          _sessionNotice = 'Your session expired. Sign in again.';
         });
         return;
       }
-      if (!mounted) return;
-      setState(() => _booting = false);
-    } catch (_) {
-      final cached = await _session.user;
-      if (!mounted) return;
+
+      // Network/server trouble is not an authentication decision. If a cached
+      // identity exists, the signed-in shell remains authoritative locally.
+      if (!mounted || !requiredForBoot) return;
       setState(() {
-        _user = cached;
+        _user = cachedUser;
+        _booting = false;
+      });
+    } catch (_) {
+      // Same rule for transport/DNS/timeouts: preserve local signed-in state.
+      if (!mounted || !requiredForBoot) return;
+      setState(() {
+        _user = cachedUser;
         _booting = false;
       });
     }
@@ -117,7 +156,35 @@ class _AppBootstrapState extends State<AppBootstrap> {
     }
 
     if (_user != null) {
-      return AppShellScreen(user: _user!);
+      return FutureBuilder<void>(
+        future: _shellLibrary ??= shell.loadLibrary(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return const Scaffold(
+              backgroundColor: PyreColors.ember,
+              body: Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text(
+                    'Could not finish loading PyreChat. Please reload to try again.',
+                    style: TextStyle(color: PyreColors.paper),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            );
+          }
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Scaffold(
+              backgroundColor: PyreColors.ember,
+              body: Center(
+                child: CircularProgressIndicator(color: PyreColors.paper),
+              ),
+            );
+          }
+          return shell.AppShellScreen(user: _user!);
+        },
+      );
     }
 
     return OnboardingPage(

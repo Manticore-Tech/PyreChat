@@ -1,0 +1,59 @@
+name: PyreSocial v1.0.11 Sideload QA
+on:
+  push:
+    branches: [ios-sideload-v101113]
+permissions:
+  contents: read
+concurrency:
+  group: pyresocial-ios-v101113
+  cancel-in-progress: false
+jobs:
+  ios-sideload:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+      - name: Verify exactly the approved Flutter release
+        run: |
+          set -euo pipefail
+          grep -qx 'version: 1.0.11+13' pubspec.yaml
+          echo "Source commit: $(git rev-parse HEAD)"
+      - run: flutter pub get
+      - run: flutter analyze --no-pub
+      - run: flutter test --no-pub
+      - name: Configure correct Firebase iOS app
+        env:
+          FIREBASE_IOS_GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.FIREBASE_IOS_GOOGLE_SERVICE_INFO_PLIST }}
+        run: |
+          set -euo pipefail
+          if [ -z "${FIREBASE_IOS_GOOGLE_SERVICE_INFO_PLIST:-}" ]; then
+            echo "::error::FIREBASE_IOS_GOOGLE_SERVICE_INFO_PLIST required for real tester binary"
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_IOS_GOOGLE_SERVICE_INFO_PLIST" > ios/Runner/GoogleService-Info.plist
+          test -s ios/Runner/GoogleService-Info.plist
+          test "$(/usr/libexec/PlistBuddy -c 'Print :BUNDLE_ID' ios/Runner/GoogleService-Info.plist)" = 'dev.pyrearms.pyrechatFlutter'
+      - name: Compile unsigned iOS app
+        run: flutter build ios --release --no-codesign --no-pub
+      - name: Verify and package IPA for Sideloadly on Windows
+        run: |
+          set -euo pipefail
+          test -d build/ios/iphoneos/Runner.app
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' build/ios/iphoneos/Runner.app/Info.plist | grep -qx 1.0.11
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' build/ios/iphoneos/Runner.app/Info.plist | grep -qx 13
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' build/ios/iphoneos/Runner.app/Info.plist | grep -qx dev.pyrearms.pyrechatFlutter
+          mkdir -p "$RUNNER_TEMP/Payload" build/ios/ipa
+          cp -R build/ios/iphoneos/Runner.app "$RUNNER_TEMP/Payload/Runner.app"
+          ( cd "$RUNNER_TEMP"; /usr/bin/zip -qry "$GITHUB_WORKSPACE/build/ios/ipa/PyreSocial-RCS-v1.0.11-unsigned.ipa" Payload )
+          unzip -t build/ios/ipa/PyreSocial-RCS-v1.0.11-unsigned.ipa >/dev/null
+          shasum -a 256 build/ios/ipa/PyreSocial-RCS-v1.0.11-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PyreSocial-RCS-v1.0.11-unsigned
+          path: build/ios/ipa/PyreSocial-RCS-v1.0.11-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30

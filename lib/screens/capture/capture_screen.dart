@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -16,11 +17,13 @@ import 'package:pyrechat_flutter/capture/pyre_lenses.dart';
 import 'package:pyrechat_flutter/models/capture_send_target.dart';
 import 'package:pyrechat_flutter/screens/capture/capture_hud.dart';
 import 'package:pyrechat_flutter/screens/lens/lens_studio_screen.dart';
+import 'package:pyrechat_flutter/services/pyre_analytics.dart';
+import 'package:pyrechat_flutter/services/pyre_camera_kit.dart';
 import 'package:pyrechat_flutter/theme/pyre_theme.dart';
-import 'package:pyrechat_flutter/widgets/pyre_icon.dart';
 import 'package:pyrechat_flutter/widgets/send_snap_sheet.dart';
 
-/// Camera tab — native preview + transparent AR overlay (web-style).
+/// Camera tab — Camera Kit is primary on configured Android builds; the
+/// legacy Pyre camera remains a fallback for unsupported/unconfigured targets.
 class CaptureScreen extends StatefulWidget {
   const CaptureScreen({
     super.key,
@@ -64,14 +67,22 @@ class CaptureScreenState extends State<CaptureScreen>
   bool _cameraSyncAgain = false;
   bool _internalCameraPause = false;
   bool _permissionSettingsRequired = false;
+  bool _cameraKitConfigured = false;
+  bool _cameraKitAvailabilityResolved = false;
+  bool _cameraKitAutoOpenedForActivation = false;
   AppLifecycleState _lifecycleState =
       WidgetsBinding.instance.lifecycleState ?? AppLifecycleState.resumed;
 
   bool get _arActive => _lens != PyreLensId.none || _customLens != null;
+  bool get _preferCameraKit =>
+      !kIsWeb && Platform.isAndroid && _cameraKitConfigured;
+
   bool get _shouldRunCamera =>
       widget.active &&
       _lifecycleState == AppLifecycleState.resumed &&
-      !_internalCameraPause;
+      !_internalCameraPause &&
+      _cameraKitAvailabilityResolved &&
+      !_preferCameraKit;
 
   @override
   void initState() {
@@ -83,22 +94,66 @@ class CaptureScreenState extends State<CaptureScreen>
       _repaintTick.value++;
     });
     _loadCustomLenses();
-    if (_shouldRunCamera) _syncCameraOwnership();
+    final desktopFallback = !kIsWeb &&
+        (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+    if (desktopFallback) {
+      _cameraKitAvailabilityResolved = true;
+      _syncCameraOwnership();
+    } else {
+      _refreshCameraKitAvailability();
+    }
   }
 
   @override
   void didUpdateWidget(CaptureScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.active != widget.active) _syncCameraOwnership();
+    if (oldWidget.active != widget.active) {
+      if (!widget.active) {
+        _cameraKitAutoOpenedForActivation = false;
+      }
+      _handleCameraTabActivation();
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _lifecycleState = state;
-    _syncCameraOwnership();
+    _handleCameraTabActivation();
   }
 
   Future<void> reloadCustomLenses() => _loadCustomLenses();
+
+  Future<void> _refreshCameraKitAvailability() async {
+    final configured = await PyreCameraKit.instance.isConfigured;
+    if (!mounted) return;
+    setState(() {
+      _cameraKitConfigured = configured;
+      _cameraKitAvailabilityResolved = true;
+    });
+    await _handleCameraTabActivation();
+  }
+
+  Future<void> _handleCameraTabActivation() async {
+    if (!mounted || !_cameraKitAvailabilityResolved) return;
+    if (!widget.active || _lifecycleState != AppLifecycleState.resumed) {
+      await _syncCameraOwnership();
+      return;
+    }
+
+    if (_preferCameraKit) {
+      await _releaseCamera();
+      if (_cameraKitAutoOpenedForActivation || _busy) return;
+      _cameraKitAutoOpenedForActivation = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.active && !_busy) {
+          _openCameraKit();
+        }
+      });
+      return;
+    }
+
+    await _syncCameraOwnership();
+  }
 
   Future<void> _loadCustomLenses() async {
     final lenses = await CustomLensStore.loadAll();
@@ -147,7 +202,7 @@ class CaptureScreenState extends State<CaptureScreen>
     if (current != null && current.value.isInitialized) return;
     if (!_shouldRunCamera) return;
 
-    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
       if (!mounted) return;
       setState(() {
         _permissionSettingsRequired = false;
@@ -157,20 +212,22 @@ class CaptureScreenState extends State<CaptureScreen>
       return;
     }
 
-    final status = await Permission.camera.request();
-    if (!mounted || !_shouldRunCamera) return;
+    if (!kIsWeb) {
+      final status = await Permission.camera.request();
+      if (!mounted || !_shouldRunCamera) return;
 
-    _permissionSettingsRequired = status.isPermanentlyDenied;
-    if (!status.isGranted) {
-      setState(() {
-        _error = status.isPermanentlyDenied
-            ? 'Camera access is off. Enable it in system settings to use Pyre Camera.'
-            : 'Camera permission is required to capture.';
-      });
-      return;
+      _permissionSettingsRequired = status.isPermanentlyDenied;
+      if (!status.isGranted) {
+        setState(() {
+          _error = status.isPermanentlyDenied
+              ? 'Camera access is off. Enable it in system settings to use Pyre Camera.'
+              : 'Camera permission is required to capture.';
+        });
+        return;
+      }
+
+      _permissionSettingsRequired = false;
     }
-
-    _permissionSettingsRequired = false;
     try {
       _cameras = await availableCameras();
       if (!mounted || !_shouldRunCamera) return;
@@ -235,8 +292,9 @@ class CaptureScreenState extends State<CaptureScreen>
       camera,
       ResolutionPreset.high,
       enableAudio: false,
-      imageFormatGroup:
-          Platform.isIOS ? ImageFormatGroup.bgra8888 : ImageFormatGroup.nv21,
+      imageFormatGroup: kIsWeb
+          ? ImageFormatGroup.unknown
+          : (Platform.isIOS ? ImageFormatGroup.bgra8888 : ImageFormatGroup.nv21),
     );
     _controller = controller;
     if (mounted) setState(() {});
@@ -274,6 +332,13 @@ class CaptureScreenState extends State<CaptureScreen>
   }
 
   Future<void> _syncTrackingStream() async {
+    if (kIsWeb) {
+      _trackStreamOn = false;
+      _overlayFrame.value = null;
+      _fireTicker.stop();
+      return;
+    }
+
     final controller = _controller;
     if (controller == null || !controller.value.isInitialized) return;
 
@@ -403,7 +468,9 @@ class CaptureScreenState extends State<CaptureScreen>
     if (wasTracking) await _stopTrackingStream();
 
     try {
+      PyreAnalytics.instance.track('camera_native_open', surface: 'camera');
       final file = await controller.takePicture();
+      PyreAnalytics.instance.track('camera_capture_photo', surface: 'camera_native');
       final lensDir = controller.description.lensDirection;
       var decoded = img.decodeImage(await file.readAsBytes());
 
@@ -454,6 +521,7 @@ class CaptureScreenState extends State<CaptureScreen>
       );
       if (!mounted) return;
       if (sent) {
+        PyreAnalytics.instance.track('camera_send', surface: 'camera_native');
         widget.onSendTargetConsumed?.call();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -485,6 +553,139 @@ class CaptureScreenState extends State<CaptureScreen>
     }
   }
 
+  Future<void> _openCameraKit() async {
+    if (_busy) return;
+
+    if (!_cameraKitConfigured) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Camera Kit is wired in, but this build still needs an approved Snap API token and Lens Group.',
+          ),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: PyreColors.panel,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _busy = true);
+    _internalCameraPause = true;
+    await _syncCameraOwnership();
+
+    try {
+      PyreAnalytics.instance.track('camera_kit_open', surface: 'camera');
+      final result = await PyreCameraKit.instance.capture();
+      if (!mounted || result == null) return;
+      PyreAnalytics.instance.track('camera_kit_return', surface: 'camera');
+      final mime = result.uploadMime;
+      if (mime == null) {
+        throw PlatformException(
+          code: 'camera_kit_unsupported_media',
+          message: 'Camera Kit returned an unsupported media type',
+        );
+      }
+
+      if (result.isVideo) {
+        PyreAnalytics.instance.track(
+          'camera_capture_video',
+          surface: 'camera_kit',
+        );
+        final bytes = await File(result.path).readAsBytes();
+        if (!mounted) return;
+
+        final target = widget.sendTarget;
+        final sent = await showSendSnapVideoSheet(
+          context: context,
+          videoBytes: bytes,
+          videoPath: result.path,
+          mime: mime,
+          conversationId: target?.conversationId,
+          recipientIds:
+              target?.canPreselect == true ? target!.recipientIds : null,
+          recipientLabel: target?.canPreselect == true ? target!.label : null,
+        );
+        if (!mounted) return;
+        if (sent) {
+          PyreAnalytics.instance.track(
+            'camera_send',
+            surface: 'camera_kit_video',
+          );
+          widget.onSendTargetConsumed?.call();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Pyre sent'),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: PyreColors.panel,
+            ),
+          );
+        }
+        return;
+      }
+
+      PyreAnalytics.instance.track(
+        'camera_capture_photo',
+        surface: 'camera_kit',
+      );
+      final bytes = await File(result.path).readAsBytes();
+      if (!mounted) return;
+
+      setState(() => _lastShot = bytes);
+
+      final target = widget.sendTarget;
+      final sent = await showSendSnapSheet(
+        context: context,
+        imageBytes: bytes,
+        imagePath: result.path,
+        mime: mime,
+        conversationId: target?.conversationId,
+        recipientIds: target?.canPreselect == true ? target!.recipientIds : null,
+        recipientLabel: target?.canPreselect == true ? target!.label : null,
+      );
+      if (!mounted) return;
+
+      if (sent) {
+        PyreAnalytics.instance.track(
+          'camera_send',
+          surface: 'camera_kit_photo',
+        );
+        widget.onSendTargetConsumed?.call();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pyre sent'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: PyreColors.panel,
+          ),
+        );
+      }
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message ?? 'Camera Kit could not open'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: PyreColors.panel,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Camera Kit could not open'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: PyreColors.panel,
+        ),
+      );
+    } finally {
+      _internalCameraPause = false;
+      if (mounted) {
+        setState(() => _busy = false);
+        await _syncCameraOwnership();
+      }
+    }
+  }
+
   Future<void> _sendLastShot() async {
     final shot = _lastShot;
     if (shot == null) return;
@@ -509,11 +710,26 @@ class CaptureScreenState extends State<CaptureScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (_error != null) {
-      final desktop =
-          Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+    if (_preferCameraKit) {
       return _MessageScaffold(
-        icon: PyreIcons.camera,
+        icon: Icons.photo_camera_outlined,
+        title: 'Camera',
+        message: _busy
+            ? 'Opening camera…'
+            : 'Snap Camera Kit is the PyreChat camera on this device.',
+        action: FilledButton.icon(
+          onPressed: _busy ? null : _openCameraKit,
+          icon: const Icon(Icons.photo_camera_rounded),
+          label: Text(_busy ? 'Opening…' : 'Open camera'),
+        ),
+      );
+    }
+
+    if (_error != null) {
+      final desktop = !kIsWeb &&
+          (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+      return _MessageScaffold(
+        icon: Icons.photo_camera_outlined,
         title: 'Camera',
         message: _error!,
         action: desktop
@@ -533,9 +749,17 @@ class CaptureScreenState extends State<CaptureScreen>
 
     final controller = _controller;
     if (controller == null || !controller.value.isInitialized) {
-      return const ColoredBox(
+      return ColoredBox(
         color: PyreColors.ink,
-        child: Center(child: CircularProgressIndicator(color: PyreColors.ember)),
+        child: Center(
+          child: Semantics(
+            label: 'Loading camera',
+            liveRegion: true,
+            child: ExcludeSemantics(
+              child: CircularProgressIndicator(color: PyreColors.ember),
+            ),
+          ),
+        ),
       );
     }
 
@@ -591,6 +815,8 @@ class CaptureScreenState extends State<CaptureScreen>
             onGradeSelected: (g) => setState(() => _grade = g),
             onCapture: _capture,
             onFlip: _flipCamera,
+            onOpenCameraKit: _openCameraKit,
+            cameraKitConfigured: _cameraKitConfigured,
             onTapLastShot: _sendLastShot,
             onGoChats: widget.onGoChats,
             onGoProfile: widget.onGoProfile,
@@ -633,7 +859,7 @@ class _MessageScaffold extends StatelessWidget {
     this.action,
   });
 
-  final String icon;
+  final IconData icon;
   final String title;
   final String message;
   final Widget? action;
@@ -666,40 +892,52 @@ class _MessageScaffold extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: 78,
-                    height: 78,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: PyreColors.ember.withValues(alpha: 0.12),
-                    ),
-                    child: ColorFiltered(
-                      colorFilter: const ColorFilter.mode(
-                        PyreColors.emberGlow,
-                        BlendMode.srcIn,
+                  ExcludeSemantics(
+                    child: Container(
+                      width: 78,
+                      height: 78,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: PyreColors.ember.withValues(alpha: 0.12),
                       ),
-                      child: PyreIcon(asset: icon, size: 42),
+                      child: Icon(
+                        icon,
+                        color: PyreColors.emberGlow,
+                        size: 42,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: PyreColors.nightText,
-                      fontSize: 25,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    message,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: PyreColors.nightMuted,
-                      fontSize: 14,
-                      height: 1.4,
-                      fontWeight: FontWeight.w600,
+                  Semantics(
+                    container: true,
+                    liveRegion: true,
+                    label: '$title. $message',
+                    child: ExcludeSemantics(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              color: PyreColors.nightText,
+                              fontSize: 25,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            message,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: PyreColors.nightMuted,
+                              fontSize: 14,
+                              height: 1.4,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   if (action != null) ...[const SizedBox(height: 16), action!],
