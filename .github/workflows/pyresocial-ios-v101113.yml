@@ -32,6 +32,20 @@ jobs:
           # No placeholder Firebase project is embedded in the test IPA.
           test ! -e ios/Runner/GoogleService-Info.plist
           echo "Native push unavailable in this unsigned test IPA."
+      - name: Remove missing Firebase plist from unsigned QA resource phase
+        run: |
+          set -euo pipefail
+          test ! -e ios/Runner/GoogleService-Info.plist
+          python3 - <<'PY'
+          from pathlib import Path
+          project = Path('ios/Runner.xcodeproj/project.pbxproj')
+          original = project.read_text()
+          marker = 'A1B2C3D4E5F60718293A4B5C /* GoogleService-Info.plist in Resources */,'
+          if original.count(marker) != 1:
+              raise SystemExit('Unexpected Xcode resource entries; refuse to alter project')
+          project.write_text(original.replace(marker, ''))
+          PY
+          echo "Removed absent plist from unsigned CI Xcode resources only."
       - name: Compile unsigned iOS app
         run: |
           set -o pipefail
