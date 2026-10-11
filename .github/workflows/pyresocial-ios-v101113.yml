@@ -6,7 +6,7 @@ permissions:
   contents: read
 concurrency:
   group: pyresocial-ios-v101113
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   ios-sideload:
     runs-on: macos-26
@@ -33,7 +33,17 @@ jobs:
           test ! -e ios/Runner/GoogleService-Info.plist
           echo "Native push unavailable in this unsigned test IPA."
       - name: Compile unsigned iOS app
-        run: flutter build ios --release --no-codesign --no-pub
+        run: |
+          set -o pipefail
+          flutter build ios --release --no-codesign --no-pub 2>&1 | tee "$RUNNER_TEMP/ios-build.log"
+      - name: Capture Xcode failure details without publishing any IPA
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PyreSocial-iOS-build-diagnostics
+          path: ${{ runner.temp }}/ios-build.log
+          if-no-files-found: warn
+          retention-days: 3
       - name: Verify and package IPA for Sideloadly on Windows
         run: |
           set -euo pipefail
