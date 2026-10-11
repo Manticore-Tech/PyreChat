@@ -1,4 +1,4 @@
-name: Publish PyreSocial iOS v1.0.11 Sideload IPA
+name: Publish PyreSocial iOS v1.0.11 Public IPA Asset
 on:
   push:
     branches: [ios-sideload-v101113]
@@ -15,8 +15,9 @@ jobs:
       TARGET_RUN: "38085190644"
       EXPECTED_SOURCE_SHA: "1e6d93cf0216632948302d507629e526785f4657"
       FILE: "PyreSocial-RCS-v1.0.11-unsigned.ipa"
-      RELEASE_TAG: "ios-v1.0.11-sideload"
+      ASSET_BRANCH: "ios-v1.0.11-unsigned-assets"
     steps:
+      - uses: actions/checkout@v5
       - name: Await audited macOS build and artifact
         shell: bash
         run: |
@@ -44,17 +45,25 @@ jobs:
           unzip -Z1 "out/$FILE" | grep -Eq '^Payload/Runner.app/Info.plist$'
           echo "60c15cc545ae231ccde0459fdb8ba0cc2cb03b867f490d810c8c97d364a458ca  out/$FILE" | sha256sum --check
           sha256sum "out/$FILE" | tee out/SHA256SUMS
-      - name: Publish immutable GitHub Release download
+
+      - name: Publish immutable first-party iOS asset branch
         shell: bash
         run: |
           set -euo pipefail
-          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "::error::Refusing to overwrite an existing IPA release"
+          if git ls-remote --exit-code --heads origin "refs/heads/$ASSET_BRANCH" >/dev/null 2>&1; then
+            echo "::error::Refusing to overwrite an existing IPA asset branch"
             exit 1
           fi
-          gh release create "$RELEASE_TAG" "out/$FILE" \
-            --repo "$GITHUB_REPOSITORY" \
-            --target 1e6d93cf0216632948302d507629e526785f4657 \
-            --title "PyreSocial v1.0.11 — unsigned iOS sideload test" \
-            --notes "Unsigned test IPA for Windows Sideloadly. Built from Flutter v1.0.11+13 via GitHub Actions run 38085190644. Native iOS Firebase/APNs notifications are disabled; test in-app RCS messaging only. Not App Store signed. Use Sideloadly to sign with your own Apple account." \
-            --prerelease
+          test -s "out/$FILE"
+          echo "60c15cc545ae231ccde0459fdb8ba0cc2cb03b867f490d810c8c97d364a458ca  out/$FILE" | sha256sum --check
+          cp "out/$FILE" "$RUNNER_TEMP/$FILE"
+          git switch --orphan "$ASSET_BRANCH"
+          mkdir -p downloads
+          cp "$RUNNER_TEMP/$FILE" "downloads/$FILE"
+          git add -f -- "downloads/$FILE"
+          test "$(git diff --cached --name-only)" = "downloads/$FILE"
+          test "$(git ls-files | wc -l)" -eq 1
+          echo "60c15cc545ae231ccde0459fdb8ba0cc2cb03b867f490d810c8c97d364a458ca  downloads/$FILE" | sha256sum --check
+          git -c user.name="MantiCore Build Tool" -c user.email="build@pyre.social" commit -m "Store SHA-verified unsigned PyreSocial iOS v1.0.11 IPA"
+          git push origin "HEAD:refs/heads/$ASSET_BRANCH"
+          git ls-remote --exit-code --heads origin "refs/heads/$ASSET_BRANCH"
