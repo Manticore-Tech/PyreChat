@@ -25,18 +25,13 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze --no-pub
       - run: flutter test --no-pub
-      - name: Configure correct Firebase iOS app
-        env:
-          FIREBASE_IOS_GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.FIREBASE_IOS_GOOGLE_SERVICE_INFO_PLIST }}
+      - name: Verify Firebase/APNs stays disabled in Sideloadly test build
         run: |
           set -euo pipefail
-          if [ -z "${FIREBASE_IOS_GOOGLE_SERVICE_INFO_PLIST:-}" ]; then
-            echo "::error::FIREBASE_IOS_GOOGLE_SERVICE_INFO_PLIST required for real tester binary"
-            exit 1
-          fi
-          printf '%s' "$FIREBASE_IOS_GOOGLE_SERVICE_INFO_PLIST" > ios/Runner/GoogleService-Info.plist
-          test -s ios/Runner/GoogleService-Info.plist
-          test "$(/usr/libexec/PlistBuddy -c 'Print :BUNDLE_ID' ios/Runner/GoogleService-Info.plist)" = 'dev.pyrearms.pyrechatFlutter'
+          # AppDelegate.configureFirebaseIfPresent tolerates a missing plist.
+          # No placeholder Firebase project is embedded in the test IPA.
+          test ! -e ios/Runner/GoogleService-Info.plist
+          echo "Native push unavailable in this unsigned test IPA."
       - name: Compile unsigned iOS app
         run: flutter build ios --release --no-codesign --no-pub
       - name: Verify and package IPA for Sideloadly on Windows
