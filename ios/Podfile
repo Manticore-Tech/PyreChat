@@ -34,8 +34,8 @@ target 'Runner' do
   pod 'FirebaseMessaging'
 
   # Snap Camera Kit is an optional AR provider behind PyreChat's camera facade.
-  pod 'SCSDKCameraKit', '1.50.0'
-  pod 'SCSDKCameraKitReferenceUI', '1.50.0'
+  pod 'SCCameraKit', '1.50.0'
+  pod 'SCCameraKitReferenceUI', '1.50.0'
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 
