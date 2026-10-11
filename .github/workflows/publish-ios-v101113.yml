@@ -12,7 +12,8 @@ jobs:
     timeout-minutes: 14
     env:
       GH_TOKEN: ${{ github.token }}
-      TARGET_RUN: "38082050469"
+      TARGET_RUN: "38085190644"
+      EXPECTED_SOURCE_SHA: "1e6d93cf0216632948302d507629e526785f4657"
       FILE: "PyreSocial-RCS-v1.0.11-unsigned.ipa"
       RELEASE_TAG: "ios-v1.0.11-sideload"
     steps:
@@ -25,6 +26,7 @@ jobs:
             if [ "$state" = "completed" ]; then
               conclusion=$(gh run view "$TARGET_RUN" --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)
               test "$conclusion" = "success" || { echo "::error::iOS build failed ($conclusion)"; exit 1; }
+              test "$(gh run view "$TARGET_RUN" --repo "$GITHUB_REPOSITORY" --json headSha --jq .headSha)" = "$EXPECTED_SOURCE_SHA" || { echo "::error::Source SHA mismatch"; exit 1; }
               exit 0
             fi
             sleep 15
@@ -40,6 +42,7 @@ jobs:
           test -s "out/$FILE"
           unzip -t "out/$FILE" >/dev/null
           unzip -Z1 "out/$FILE" | grep -Eq '^Payload/Runner.app/Info.plist$'
+          echo "60c15cc545ae231ccde0459fdb8ba0cc2cb03b867f490d810c8c97d364a458ca  out/$FILE" | sha256sum --check
           sha256sum "out/$FILE" | tee out/SHA256SUMS
       - name: Publish immutable GitHub Release download
         shell: bash
@@ -51,7 +54,7 @@ jobs:
           fi
           gh release create "$RELEASE_TAG" "out/$FILE" \
             --repo "$GITHUB_REPOSITORY" \
-            --target ios-sideload-v101113 \
+            --target 1e6d93cf0216632948302d507629e526785f4657 \
             --title "PyreSocial v1.0.11 — unsigned iOS sideload test" \
-            --notes "Unsigned test IPA for Windows Sideloadly. Built from Flutter v1.0.11+13 via GitHub Actions run 38082050469. Native iOS Firebase/APNs notifications are disabled; test in-app RCS messaging only. Not App Store signed. Use Sideloadly to sign with your own Apple account." \
+            --notes "Unsigned test IPA for Windows Sideloadly. Built from Flutter v1.0.11+13 via GitHub Actions run 38085190644. Native iOS Firebase/APNs notifications are disabled; test in-app RCS messaging only. Not App Store signed. Use Sideloadly to sign with your own Apple account." \
             --prerelease
